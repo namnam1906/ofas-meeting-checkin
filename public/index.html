@@ -1447,6 +1447,15 @@
     return stringified;
   }
 
+  // จัดรูปแบบวันที่เช็คอินแบบไม่พึ่ง locale — ก่อนหน้านี้ใช้ dt.toLocaleString('th-TH', ...)
+  // ซึ่งได้ปี พ.ศ. (เช่น 2568) มาปนกับรูปแบบวันที่/เดือนที่กำกวม พอเปิดใน Excel มันเดา
+  // locale ผิดแล้วตีความเป็นวันที่มั่วๆ (เช่นกลายเป็นปี 1969) ฟังก์ชันนี้ใช้ปี ค.ศ. ตรงๆ
+  // แบบ DD/MM/YYYY HH:mm:ss ชัดเจน ไม่กำกวม
+  function formatCheckinTimeForCsv(date){
+    const pad = (n)=> String(n).padStart(2, '0');
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
   document.getElementById('exportBtn').addEventListener('click', async ()=>{
     if(checkedInIds.size === 0) {
       showToast('ยังไม่มีข้อมูลผู้ที่เช็คอินให้ดาวน์โหลด', 'warn');
@@ -1471,7 +1480,7 @@
       // บรรทัดหัวเรื่อง
       csvContent += `ชื่องาน:,${escapeCSV(currentEventName)}\n\n`;
       // บรรทัดหัวคอลัมน์
-      csvContent += "คำนำหน้า,ชื่อ,ตำแหน่ง,เวลาเช็คอิน\n";
+      csvContent += "รหัส,คำนำหน้า,ชื่อ,ตำแหน่ง,สังกัด/หน่วยงาน,เวลาเช็คอิน\n";
 
       // ดึงเฉพาะคนที่เช็คอินแล้ว และจัดเรียงตามเวลาเช็คอิน
       const checkedInAttendees = roster.filter(a => checkedInIds.has(a.id));
@@ -1487,14 +1496,11 @@
         let n = a.origName != null ? a.origName : a.name;
 
         const pos = a.position || '';
+        const org = a.org || '';
         const timeStr = checkinTimes[a.id];
-        let timeDisplay = '';
-        if (timeStr) {
-          const dt = new Date(timeStr);
-          timeDisplay = dt.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
-        }
+        const timeDisplay = timeStr ? formatCheckinTimeForCsv(new Date(timeStr)) : '';
 
-        csvContent += `${escapeCSV(t)},${escapeCSV(n)},${escapeCSV(pos)},${escapeCSV(timeDisplay)}\n`;
+        csvContent += `${escapeCSV(a.id)},${escapeCSV(t)},${escapeCSV(n)},${escapeCSV(pos)},${escapeCSV(org)},${escapeCSV(timeDisplay)}\n`;
       }
 
       // สร้างไฟล์แล้วสั่งให้เบราว์เซอร์ดาวน์โหลด
