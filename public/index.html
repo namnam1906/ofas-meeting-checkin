@@ -394,7 +394,10 @@
     <p class="panel-hint">แต่ละคนจะได้รหัส QR เฉพาะตัวสำหรับใช้เช็คอินหน้างาน พิมพ์ออกมาเป็นบัตรหรือแสดงหน้าจอให้สแกนก็ได้</p>
     <div class="badges-toolbar">
       <span class="count" id="badgeCount"></span>
-      <button class="btn brass small" id="printBtn">พิมพ์บัตรทั้งหมด</button>
+      <div class="btn-row" style="margin:0;">
+        <button class="btn brass small" id="printBtn">พิมพ์บัตรทั้งหมด</button>
+        <button class="btn danger small" id="resetBtnBadges">ล้างข้อมูลทั้งหมด</button>
+      </div>
     </div>
     <div class="badges-grid" id="badgesGrid"></div>
   </section>
@@ -592,10 +595,11 @@
     Object.keys(importBoxes).forEach(k=> importBoxes[k].style.display = (k===b.dataset.method) ? '' : 'none');
   }));
 
-  function guessField(fields, keywords){
+  function guessField(fields, keywords, excludeKeywords){
+    const exclude = excludeKeywords || [];
     const lower = fields.map(f=> ({f, l: String(f).toLowerCase()}));
     for(const kw of keywords){
-      const hit = lower.find(x=> x.l.includes(kw));
+      const hit = lower.find(x=> x.l.includes(kw) && !exclude.some(ex=> x.l.includes(ex)));
       if(hit) return hit.f;
     }
     return '';
@@ -611,7 +615,7 @@
 
     const guesses = {
       mapTitle: guessField(fields, ['คำนำหน้า','คำนำหน้าชื่อ','title','prefix']),
-      mapName: guessField(fields, ['ชื่อ-นามสกุล','ชื่อ','full name','fullname','name']),
+      mapName: guessField(fields, ['ชื่อ-นามสกุล','ชื่อ','full name','fullname','name'], ['คำนำหน้า']),
       mapPosition: guessField(fields, ['ตำแหน่ง','position','job title','role']),
       mapOrg: guessField(fields, ['หน่วยงาน','สังกัด','กอง','ฝ่าย','คณะ','สำนักงาน','organization','department','affiliation']),
       mapEmail: guessField(fields, ['อีเมล','email','e-mail']),
@@ -1200,9 +1204,9 @@
     }
   });
 
-  document.getElementById('resetBtn').addEventListener('click', async ()=>{
+  async function resetAllData(btn){
     if(!confirm('ล้างรายชื่อผู้ลงทะเบียนและสถานะเช็คอินทั้งหมดของงานนี้? การกระทำนี้ย้อนกลับไม่ได้')) return;
-    const btn = document.getElementById('resetBtn');
+    const originalText = btn.textContent;
     btn.disabled = true; btn.textContent = 'กำลังล้างข้อมูล...';
     stopScanner();
     await storeDelete('roster', true);
@@ -1212,9 +1216,11 @@
     checkedInIds = new Set();
     document.getElementById('logList').innerHTML = '<div class="log-empty">ยังไม่มีการเช็คอิน</div>';
     renderAll();
-    btn.disabled = false; btn.textContent = 'ล้างข้อมูลทั้งหมด';
+    btn.disabled = false; btn.textContent = originalText;
     showToast('ล้างข้อมูลเรียบร้อย', 'ok');
-  });
+  }
+  document.getElementById('resetBtn').addEventListener('click', (e)=> resetAllData(e.currentTarget));
+  document.getElementById('resetBtnBadges').addEventListener('click', (e)=> resetAllData(e.currentTarget));
 
   // ================= INIT =================
   function renderAll(){
