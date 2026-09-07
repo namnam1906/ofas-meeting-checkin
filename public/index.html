@@ -1411,9 +1411,24 @@
   async function pollCheckins(){
     const keys = await storeList('checkin:', true);
     const idsNow = new Set(keys.map(k=> k.slice('checkin:'.length)));
-    let changed = false;
-    idsNow.forEach(id=>{ if(!checkedInIds.has(id)){ checkedInIds.add(id); changed = true; } });
-    if(changed){ renderCheckinStats(); renderSearchResults(); }
+    const newIds = [];
+    idsNow.forEach(id=>{ if(!checkedInIds.has(id)){ checkedInIds.add(id); newIds.push(id); } });
+    if(!newIds.length) return;
+
+    // เจอเช็คอินใหม่ที่มาจากอุปกรณ์เครื่องอื่น (เครื่องนี้ยังไม่เคย log ไว้) —
+    // ดึงเวลาจริงจาก KV มาแทรกลง "รายการเช็คอินล่าสุด" ให้ตรงกับเครื่องที่กดเช็คอินจริง
+    const withTimes = [];
+    for(const id of newIds){
+      const attendee = roster.find(a=> a.id === id);
+      if(!attendee) continue;
+      const timeStr = await storeGet('checkin:' + id, true);
+      withTimes.push({ attendee, time: timeStr ? new Date(timeStr) : new Date() });
+    }
+    withTimes.sort((a, b)=> a.time - b.time); // เก่าสุดก่อน เพราะ addLogEntry แทรกไว้บนสุดทีละแถว
+    withTimes.forEach(({attendee, time})=> addLogEntry(attendee, time));
+
+    renderCheckinStats();
+    renderSearchResults();
   }
   function startCheckinPolling(){
     stopCheckinPolling();
