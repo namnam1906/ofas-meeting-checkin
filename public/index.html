@@ -10,6 +10,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.7.0/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<!-- ต้องตั้งค่า Secret ชื่อ STORAGE_TOKEN ที่ค่าเดียวกันนี้ไว้ที่ฝั่ง Cloudflare Worker
+     (Settings > Variables and Secrets) ไม่งั้น /api/storage จะปฏิเสธ request ทั้งหมด (401) -->
+<script>window.STORAGE_CLIENT_TOKEN = 'YYA52AoxgjTQyZq6BvTfFopLuieYLpo4fRmB0qAQ';</script>
 <style>
   :root{
     --ink:#12172B;
