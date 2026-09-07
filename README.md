@@ -7,9 +7,11 @@
 ## โครงสร้างโปรเจกต์
 
 ```
-public/index.html    หน้าเว็บทั้งหมด (static, ไม่มี build step)
-src/worker.js         Cloudflare Worker entry point — เสิร์ฟ static assets + route /api/storage
+public/index.html     หน้าเว็บทั้งหมด (static, ไม่มี build step)
+src/worker.js          Cloudflare Worker entry point — เสิร์ฟ static assets + route /api/storage และ /api/send-email
 src/storage-api.js     ตัวจัดการ REST /api/storage ครอบ Cloudflare KV
+src/email-api.js       ตัวจัดการ REST /api/send-email ส่งอีเมล QR ผ่าน Resend
+src/http-helpers.js    ฟังก์ชันช่วยที่ใช้ร่วมกัน (json response, ตรวจ STORAGE_TOKEN)
 wrangler.toml          config ผูก assets directory + KV binding
 ```
 
@@ -48,6 +50,29 @@ npx wrangler deploy
 3. Save และ deploy ใหม่ (หรือรอ deployment ถัดไปจาก Git)
 
 ถ้าต้องเปลี่ยน token ในอนาคต ต้องแก้ทั้ง 2 ที่ให้ตรงกันเสมอ (Secret ฝั่ง Cloudflare + ค่าใน `public/index.html`) ไม่งั้น `/api/storage` จะตอบ 401 ทุก request ดูรายละเอียดข้อจำกัดของวิธีนี้ในหัวข้อ "ความปลอดภัยของข้อมูล" ด้านล่าง
+
+## เลือกบางรายการในแท็บ "ออกบัตร QR"
+
+แต่ละใบบัตรมี checkbox ให้ติ๊กเลือก และมีแถบเครื่องมือด้านบนแยกเป็น 3 กลุ่ม แต่ละกลุ่มมีตัวเลือก "เฉพาะที่เลือก" กับ "ทั้งหมด":
+
+- **พิมพ์บัตร** — พิมพ์เฉพาะที่ติ๊กไว้ หรือพิมพ์ทั้งหมด
+- **ส่งอีเมล QR** — ส่งอีเมลแนบรูป QR ให้เฉพาะรายการที่ติ๊กไว้และมีอีเมล (ข้ามคนที่ไม่มีอีเมลอัตโนมัติ)
+- **ลบข้อมูล** — ลบเฉพาะรายการที่ติ๊กไว้ (รวมสถานะเช็คอินของคนนั้น) หรือลบทั้งหมด
+
+### ตั้งค่าการส่งอีเมล QR (Resend)
+
+Cloudflare Workers เองส่งอีเมลไม่ได้ ฟีเจอร์นี้พึ่งบริการภายนอก [Resend](https://resend.com) (มี free tier) ผ่าน `src/email-api.js`:
+
+1. สมัครบัญชีที่ resend.com แล้วสร้าง **API key**
+2. Worker `ofas-checkin` → **Settings > Variables and Secrets** → Add secret ชื่อ `RESEND_API_KEY` = ค่า API key ที่ได้
+
+⚠️ **ข้อจำกัดตอนยังไม่ verify โดเมน:** ถ้ายังไม่ได้เพิ่ม/verify โดเมนของหน่วยงาน (เช่น `ofas.go.th`) กับ Resend ระบบจะส่งจาก sender ทดสอบ `onboarding@resend.dev` ได้ และ **ส่งถึงได้แค่อีเมลที่ใช้สมัครบัญชี Resend เท่านั้น** — ส่งหาอีเมลผู้ลงทะเบียนคนอื่นจะ error ("You can only send testing emails to your own email address") จนกว่าจะ verify โดเมนตัวเอง
+
+เมื่อพร้อมใช้งานจริง (verify โดเมนแล้ว):
+1. Resend dashboard → Domains → Add Domain → เพิ่ม DNS record (TXT/MX) ตามที่ Resend กำหนดในโดเมนของหน่วยงาน แล้วรอ verify
+2. ตั้ง Secret เพิ่มอีกตัวชื่อ `EMAIL_FROM` เป็นอีเมลที่ verify แล้ว เช่น `checkin@ofas.go.th` (ถ้าไม่ตั้งไว้ ระบบจะ fallback ไปใช้ `onboarding@resend.dev` เสมอ)
+
+`/api/send-email` ใช้ token ยืนยันตัวตนตัวเดียวกับ `/api/storage` (`STORAGE_TOKEN`) อยู่แล้ว ไม่ต้องตั้งเพิ่ม
 
 ## ความปลอดภัยของข้อมูล
 
