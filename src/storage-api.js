@@ -9,27 +9,9 @@
 //   DELETE /api/storage?key=<key>             -> { ok: true }
 //
 // ต้อง bind KV namespace ชื่อ STORAGE_KV ใน wrangler.toml (ดูไฟล์ wrangler.toml ใน repo นี้)
-//
-// การยืนยันตัวตน: ถ้าตั้งค่า environment variable STORAGE_TOKEN ไว้ใน Cloudflare
-// (Settings > Variables and Secrets, ตั้งเป็น Secret) ทุก request ต้องแนบ header
-// `X-Storage-Token: <ค่าเดียวกัน>` ไม่งั้นจะได้ 401 — ถ้าไม่ตั้งค่าไว้เลย endpoint จะเปิดสาธารณะ
-// (ใช้ได้เฉพาะตอนพัฒนา/ทดสอบเท่านั้น ไม่ควรปล่อยแบบนี้ตอนใช้งานจริงกับข้อมูลส่วนบุคคล)
+// การยืนยันตัวตนใช้ STORAGE_TOKEN ร่วมกับ email-api.js — ดู src/http-helpers.js
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-  });
-}
-
-function unauthorized() {
-  return json({ error: 'unauthorized' }, 401);
-}
-
-function authOk(request, env) {
-  if (!env.STORAGE_TOKEN) return true; // ไม่ได้ตั้งค่า token ไว้ -> เปิดสาธารณะ (ใช้ตอน dev เท่านั้น)
-  return request.headers.get('X-Storage-Token') === env.STORAGE_TOKEN;
-}
+import { json, unauthorized, authOk } from './http-helpers.js';
 
 async function handleGet(request, env) {
   if (!authOk(request, env)) return unauthorized();
