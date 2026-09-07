@@ -168,12 +168,21 @@
   .badges-toolbar .count{ font-size:12.5px; color:var(--muted); }
   .select-all-label{ display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; }
   .selected-count{ font-size:12.5px; color:var(--brass-deep); font-weight:500; }
-  .badges-actions{
-    display:flex; flex-wrap:wrap; gap:18px; align-items:center;
-    padding:12px 14px; margin-bottom:18px; background:var(--paper-2); border:1px solid var(--line);
+  .badges-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+
+  /* ---------- scope choice modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(18,23,43,0.55); z-index:60;
+    display:flex; align-items:center; justify-content:center; padding:20px;
   }
-  .action-group{ display:flex; align-items:center; gap:8px; }
-  .action-group-label{ font-size:12px; color:var(--muted); white-space:nowrap; }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-box{
+    background:var(--paper-2); border:1px solid var(--line); padding:22px; max-width:360px; width:100%;
+    box-shadow:0 12px 32px rgba(0,0,0,0.22);
+  }
+  .modal-message{ font-size:14px; line-height:1.6; margin:0 0 16px; }
+  .modal-actions{ display:flex; flex-direction:column; gap:8px; }
+  .modal-actions .btn{ width:100%; }
   .badges-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; }
   .badge-card{
     display:flex; background:var(--paper-2); border:1px solid var(--line); position:relative;
@@ -407,7 +416,7 @@
   <!-- ================= BADGES PANEL ================= -->
   <section class="panel print-target" id="panel-badges">
     <h2 class="panel-title">ออกบัตร QR สำหรับผู้ลงทะเบียน</h2>
-    <p class="panel-hint">แต่ละคนจะได้รหัส QR เฉพาะตัวสำหรับใช้เช็คอินหน้างาน พิมพ์ออกมาเป็นบัตรหรือแสดงหน้าจอให้สแกนก็ได้ ติ๊กเลือกบางรายการเพื่อพิมพ์/ส่งอีเมล/ลบเฉพาะที่เลือกได้</p>
+    <p class="panel-hint">แต่ละคนจะได้รหัส QR เฉพาะตัวสำหรับใช้เช็คอินหน้างาน พิมพ์ออกมาเป็นบัตรหรือแสดงหน้าจอให้สแกนก็ได้ ติ๊กเลือกบางรายการไว้ก่อนถ้าจะทำแค่บางคน ไม่ติ๊กไว้ = ทำกับทุกคน</p>
     <div class="badges-toolbar">
       <span class="count" id="badgeCount"></span>
       <label class="select-all-label">
@@ -417,23 +426,24 @@
       <span class="selected-count" id="selectedCount"></span>
     </div>
     <div class="badges-actions">
-      <div class="action-group">
-        <span class="action-group-label">พิมพ์บัตร</span>
-        <button class="btn ghost small" id="printSelectedBtn" disabled>เฉพาะที่เลือก</button>
-        <button class="btn brass small" id="printBtn">ทั้งหมด</button>
-      </div>
-      <div class="action-group">
-        <span class="action-group-label">ส่งอีเมล QR</span>
-        <button class="btn ghost small" id="emailSelectedBtn" disabled>ส่งให้ที่เลือก</button>
-      </div>
-      <div class="action-group">
-        <span class="action-group-label">ลบข้อมูล</span>
-        <button class="btn danger small" id="deleteSelectedBtn" disabled>เฉพาะที่เลือก</button>
-        <button class="btn danger small" id="resetBtnBadges">ทั้งหมด</button>
-      </div>
+      <button class="btn brass small" id="printBtn">พิมพ์บัตร</button>
+      <button class="btn ghost small" id="emailBtn">ส่งอีเมล QR</button>
+      <button class="btn danger small" id="deleteBtn">ลบข้อมูล</button>
     </div>
     <div class="badges-grid" id="badgesGrid"></div>
   </section>
+
+  <!-- ================= SCOPE CHOICE MODAL ================= -->
+  <div class="modal-overlay" id="scopeModal" hidden>
+    <div class="modal-box">
+      <p class="modal-message" id="scopeModalMessage"></p>
+      <div class="modal-actions">
+        <button class="btn brass small" id="scopeModalSelected"></button>
+        <button class="btn ghost small" id="scopeModalAll"></button>
+        <button class="btn ghost small" id="scopeModalCancel">ยกเลิก</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ================= CHECKIN PANEL ================= -->
   <section class="panel" id="panel-checkin">
@@ -869,10 +879,7 @@
     const selectAllEl = document.getElementById('selectAllBadges');
     const selectedCountEl = document.getElementById('selectedCount');
     const n = selectedBadgeIds.size;
-    selectedCountEl.textContent = n ? `เลือกไว้ ${n} คน` : '';
-    document.getElementById('printSelectedBtn').disabled = n === 0;
-    document.getElementById('deleteSelectedBtn').disabled = n === 0;
-    document.getElementById('emailSelectedBtn').disabled = n === 0;
+    selectedCountEl.textContent = n ? `เลือกไว้ ${n} จาก ${roster.length} คน` : '';
     if(!roster.length){
       selectAllEl.checked = false;
       selectAllEl.indeterminate = false;
@@ -882,6 +889,40 @@
     selectAllEl.disabled = false;
     selectAllEl.checked = n > 0 && n === roster.length;
     selectAllEl.indeterminate = n > 0 && n < roster.length;
+  }
+
+  // ถามว่าจะทำกับ "เฉพาะที่เลือก" หรือ "ทั้งหมด" — เรียกหลังกดปุ่ม action แล้วมีการติ๊กเลือกไว้บางส่วน
+  // คืนค่า 'selected' | 'all' | null (ยกเลิก)
+  function askScope(actionLabel, selectedCount, totalCount){
+    return new Promise(resolve=>{
+      const overlay = document.getElementById('scopeModal');
+      const selectedBtn = document.getElementById('scopeModalSelected');
+      const allBtn = document.getElementById('scopeModalAll');
+      const cancelBtn = document.getElementById('scopeModalCancel');
+      document.getElementById('scopeModalMessage').textContent =
+        `เลือกไว้ ${selectedCount} จากทั้งหมด ${totalCount} คน — ต้องการ${actionLabel}รายการไหน?`;
+      selectedBtn.textContent = `เฉพาะที่เลือก (${selectedCount})`;
+      allBtn.textContent = `ทั้งหมด (${totalCount})`;
+      overlay.hidden = false;
+      function cleanup(result){
+        overlay.hidden = true;
+        selectedBtn.onclick = null; allBtn.onclick = null; cancelBtn.onclick = null;
+        resolve(result);
+      }
+      selectedBtn.onclick = ()=> cleanup('selected');
+      allBtn.onclick = ()=> cleanup('all');
+      cancelBtn.onclick = ()=> cleanup(null);
+    });
+  }
+
+  // ตัดสินใจว่ารอบนี้จะทำกับใคร: ถ้ามีติ๊กเลือกไว้ ให้ถามก่อน ไม่งั้นถือว่าทำกับทั้งหมดเลย
+  // คืนค่า array ของ attendee ที่จะทำ หรือ null ถ้ายกเลิก/ไม่มีรายชื่อ
+  async function resolveActionTargets(actionLabel){
+    if(!roster.length){ showToast('ยังไม่มีผู้ลงทะเบียน', 'warn'); return null; }
+    if(selectedBadgeIds.size === 0) return roster.slice();
+    const scope = await askScope(actionLabel, selectedBadgeIds.size, roster.length);
+    if(!scope) return null;
+    return scope === 'selected' ? roster.filter(a=> selectedBadgeIds.has(a.id)) : roster.slice();
   }
 
   document.getElementById('selectAllBadges').addEventListener('change', (e)=>{
@@ -958,21 +999,6 @@
     }
   });
 
-  document.getElementById('printBtn').addEventListener('click', ()=>{
-    activateTab('badges');
-    setTimeout(()=> window.print(), 80);
-  });
-
-  document.getElementById('printSelectedBtn').addEventListener('click', ()=>{
-    if(!selectedBadgeIds.size){ showToast('ยังไม่ได้เลือกรายการ', 'warn'); return; }
-    activateTab('badges');
-    const grid = document.getElementById('badgesGrid');
-    grid.classList.add('print-selected-only');
-    const cleanup = ()=>{ grid.classList.remove('print-selected-only'); window.removeEventListener('afterprint', cleanup); };
-    window.addEventListener('afterprint', cleanup);
-    setTimeout(()=> window.print(), 80);
-  });
-
   function getBadgeQrDataUrl(id){
     const qrBox = document.getElementById('qr-' + id);
     if(!qrBox) return '';
@@ -983,16 +1009,32 @@
     return '';
   }
 
-  document.getElementById('emailSelectedBtn').addEventListener('click', async ()=>{
-    const ids = Array.from(selectedBadgeIds);
-    if(!ids.length){ showToast('ยังไม่ได้เลือกรายการ', 'warn'); return; }
-    const targets = ids.map(id=> roster.find(a=> a.id === id)).filter(Boolean);
+  document.getElementById('printBtn').addEventListener('click', async ()=>{
+    const targets = await resolveActionTargets('พิมพ์บัตร');
+    if(!targets) return;
+    activateTab('badges');
+    const printOnlySelected = targets.length < roster.length;
+    if(printOnlySelected){
+      // targets ตรงกับ selectedBadgeIds พอดี (scope==='selected') ซึ่งการ์ดถูก
+      // ติดคลาส .selected ไว้แล้วจาก checkbox — ใช้ CSS ซ่อนที่เหลือตอนพิมพ์
+      const grid = document.getElementById('badgesGrid');
+      grid.classList.add('print-selected-only');
+      const cleanup = ()=>{ grid.classList.remove('print-selected-only'); window.removeEventListener('afterprint', cleanup); };
+      window.addEventListener('afterprint', cleanup);
+    }
+    setTimeout(()=> window.print(), 80);
+  });
+
+  document.getElementById('emailBtn').addEventListener('click', async ()=>{
+    const targets = await resolveActionTargets('ส่งอีเมล QR ให้');
+    if(!targets) return;
     const withEmail = targets.filter(a=> a.email);
     const withoutEmail = targets.length - withEmail.length;
     if(!withEmail.length){ showToast('รายการที่เลือกไม่มีอีเมลเลย', 'warn'); return; }
     if(!confirm(`ส่งอีเมล QR ให้ ${withEmail.length} คนที่มีอีเมล${withoutEmail ? ` (ข้าม ${withoutEmail} คนที่ไม่มีอีเมล)` : ''}?\n\nหมายเหตุ: ถ้ายังไม่ได้ verify โดเมนกับ Resend จะส่งได้เฉพาะอีเมลที่สมัครบัญชี Resend ไว้เท่านั้น อีเมลอื่นจะส่งไม่สำเร็จ`)) return;
 
-    const btn = document.getElementById('emailSelectedBtn');
+    const btn = document.getElementById('emailBtn');
+    const originalText = btn.textContent;
     btn.disabled = true;
     let sent = 0, failed = 0;
     for(let i = 0; i < withEmail.length; i++){
@@ -1023,15 +1065,17 @@
       if(i < withEmail.length - 1) await new Promise(r=> setTimeout(r, 400));
     }
     btn.disabled = false;
-    btn.textContent = 'ส่งให้ที่เลือก';
+    btn.textContent = originalText;
     showToast(`ส่งอีเมลสำเร็จ ${sent} คน${failed ? `, ล้มเหลว ${failed} คน` : ''}`, failed ? 'warn' : 'ok');
   });
 
-  document.getElementById('deleteSelectedBtn').addEventListener('click', async ()=>{
-    const ids = Array.from(selectedBadgeIds);
-    if(!ids.length){ showToast('ยังไม่ได้เลือกรายการ', 'warn'); return; }
-    if(!confirm(`ลบรายชื่อที่เลือกไว้ ${ids.length} คน (รวมสถานะเช็คอินของคนเหล่านี้)? การกระทำนี้ย้อนกลับไม่ได้`)) return;
-    const btn = document.getElementById('deleteSelectedBtn');
+  document.getElementById('deleteBtn').addEventListener('click', async ()=>{
+    const targets = await resolveActionTargets('ลบข้อมูล');
+    if(!targets) return;
+    const ids = targets.map(a=> a.id);
+    if(!confirm(`ลบรายชื่อ ${ids.length} คน (รวมสถานะเช็คอินของคนเหล่านี้)? การกระทำนี้ย้อนกลับไม่ได้`)) return;
+    const btn = document.getElementById('deleteBtn');
+    const originalText = btn.textContent;
     btn.disabled = true; btn.textContent = 'กำลังลบ...';
     try{
       const freshRaw = await storeGet('roster', true);
@@ -1046,7 +1090,7 @@
       renderAll();
       showToast(`ลบรายชื่อ ${ids.length} คนเรียบร้อย`, 'ok');
     } finally{
-      btn.disabled = false; btn.textContent = 'เฉพาะที่เลือก';
+      btn.disabled = false; btn.textContent = originalText;
     }
   });
 
@@ -1385,7 +1429,6 @@
     showToast('ล้างข้อมูลเรียบร้อย', 'ok');
   }
   document.getElementById('resetBtn').addEventListener('click', (e)=> resetAllData(e.currentTarget));
-  document.getElementById('resetBtnBadges').addEventListener('click', (e)=> resetAllData(e.currentTarget));
 
   // ================= INIT =================
   function renderAll(){
