@@ -41,11 +41,13 @@ wrangler.toml          config ผูก assets directory + KV binding
 npx wrangler deploy
 ```
 
-**(แนะนำ) ตั้งค่า token กันข้อมูลรั่ว** — ไปที่ project ใน Cloudflare dashboard > Settings > Variables and Secrets เพิ่ม secret ชื่อ `STORAGE_TOKEN` เป็นค่าสุ่มยาวๆ ที่ตั้งเอง แล้วเปิด `public/index.html` เพิ่มบรรทัดนี้ก่อนสคริปต์หลัก (ก่อน `<script>(function(){ ... โค้ดหลัก` ในไฟล์):
-```html
-<script>window.STORAGE_CLIENT_TOKEN = 'ค่าเดียวกับ STORAGE_TOKEN';</script>
-```
-ดูรายละเอียดข้อจำกัดของวิธีนี้ในหัวข้อ "ความปลอดภัยของข้อมูล" ด้านล่าง
+**✅ ตั้งค่า token กันข้อมูลรั่วแล้ว** — `public/index.html` ฝัง `window.STORAGE_CLIENT_TOKEN` ไว้แล้ว ต้องตั้ง Secret ฝั่ง Cloudflare ให้ตรงกันด้วย (ทำครั้งเดียว ไม่ได้ทำอัตโนมัติจากโค้ด):
+
+1. ไปที่ Worker `ofas-checkin` ใน Cloudflare dashboard > **Settings > Variables and Secrets**
+2. Add > ชื่อ `STORAGE_TOKEN` ประเภท **Secret** > ใส่ค่าเดียวกับที่ฝังใน `public/index.html` (`window.STORAGE_CLIENT_TOKEN`)
+3. Save และ deploy ใหม่ (หรือรอ deployment ถัดไปจาก Git)
+
+ถ้าต้องเปลี่ยน token ในอนาคต ต้องแก้ทั้ง 2 ที่ให้ตรงกันเสมอ (Secret ฝั่ง Cloudflare + ค่าใน `public/index.html`) ไม่งั้น `/api/storage` จะตอบ 401 ทุก request ดูรายละเอียดข้อจำกัดของวิธีนี้ในหัวข้อ "ความปลอดภัยของข้อมูล" ด้านล่าง
 
 ## ความปลอดภัยของข้อมูล
 
