@@ -1546,7 +1546,22 @@
     const rosterRaw = await storeGet('roster', true);
     roster = rosterRaw ? JSON.parse(rosterRaw) : [];
     const keys = await storeList('checkin:', true);
-    checkedInIds = new Set(keys.map(k=> k.slice('checkin:'.length)));
+    const ids = keys.map(k=> k.slice('checkin:'.length));
+    checkedInIds = new Set(ids);
+
+    // เติมประวัติเช็คอินที่มีอยู่แล้วลงใน "รายการเช็คอินล่าสุด" ตั้งแต่เปิดหน้าครั้งแรก
+    // ไม่งั้นเครื่องที่เพิ่งมาเปิดใหม่จะเห็นแค่ตัวเลขสถิติ แต่ลิสต์ว่างเปล่า ดูเหมือนไม่ซิงก์กับเครื่องอื่น
+    if(ids.length){
+      const withTimes = (await Promise.all(ids.map(async (id)=>{
+        const attendee = roster.find(a=> a.id === id);
+        if(!attendee) return null;
+        const timeStr = await storeGet('checkin:' + id, true);
+        return { attendee, time: timeStr ? new Date(timeStr) : new Date(0) };
+      }))).filter(Boolean);
+      withTimes.sort((a, b)=> a.time - b.time); // เก่าสุดก่อน เพราะ addLogEntry แทรกไว้บนสุดทีละแถว
+      withTimes.forEach(({attendee, time})=> addLogEntry(attendee, time));
+    }
+
     renderAll();
   }
 
