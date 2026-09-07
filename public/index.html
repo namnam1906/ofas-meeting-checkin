@@ -178,6 +178,22 @@
   .select-all-label{ display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; }
   .selected-count{ font-size:12.5px; color:var(--text); }
   .selection-bar-buttons{ display:flex; gap:8px; margin-left:auto; }
+
+  /* ---------- generic confirm modal (ใช้กับยืนยันเช็คอินจากการสแกน) ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(18,23,43,0.55); z-index:60;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-box{
+    background:var(--paper-2); border:1px solid var(--line); padding:22px; max-width:360px; width:100%;
+    box-shadow:0 12px 32px rgba(0,0,0,0.22);
+  }
+  .modal-message{ font-size:14px; line-height:1.7; margin:0 0 16px; }
+  .modal-message b{ font-size:16px; }
+  .modal-actions{ display:flex; flex-direction:column; gap:8px; }
+  .modal-actions .btn{ width:100%; }
+
   .badges-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px; }
   .badge-card{
     display:flex; background:var(--paper-2); border:1px solid var(--line); position:relative;
@@ -492,6 +508,17 @@
 </main>
 
 <div id="toast-stack"></div>
+
+<!-- ================= CHECKIN CONFIRM MODAL ================= -->
+<div class="modal-overlay" id="checkinConfirmModal" hidden>
+  <div class="modal-box">
+    <p class="modal-message" id="checkinConfirmMessage"></p>
+    <div class="modal-actions">
+      <button class="btn brass small" id="checkinConfirmYes">ยืนยันเช็คอิน</button>
+      <button class="btn ghost small" id="checkinConfirmNo">ยกเลิก</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -1161,13 +1188,62 @@
     if(!opts.silentFlash) flashScannerFrame('ok');
   }
 
-  function processScannedCode(rawText){
+  // แสดง popup ให้กดยืนยันก่อนบันทึกเช็คอินจริง (ใช้เฉพาะตอนสแกนกล้อง/ไฟล์รูป —
+  // การเช็คอินจากช่องค้นหาถือว่าผู้ใช้กดปุ่ม "เช็คอิน" เองแล้วคือการยืนยันอยู่แล้ว)
+  // คืนค่า true/false
+  function showCheckinConfirm(attendee){
+    return new Promise(resolve=>{
+      const overlay = document.getElementById('checkinConfirmModal');
+      const yesBtn = document.getElementById('checkinConfirmYes');
+      const noBtn = document.getElementById('checkinConfirmNo');
+      document.getElementById('checkinConfirmMessage').innerHTML =
+        `พบรายชื่อ: <b>${escapeHtml(attendee.name)}</b>` +
+        (attendee.position ? `<br>${escapeHtml(attendee.position)}` : '') +
+        (attendee.org ? `<br>${escapeHtml(attendee.org)}` : '') +
+        `<br>รหัส: ${attendee.id}<br><br>ยืนยันเช็คอินคนนี้ใช่ไหม?`;
+      overlay.hidden = false;
+      function cleanup(result){
+        overlay.hidden = true;
+        yesBtn.onclick = null; noBtn.onclick = null;
+        resolve(result);
+      }
+      yesBtn.onclick = ()=> cleanup(true);
+      noBtn.onclick = ()=> cleanup(false);
+    });
+  }
+
+  let awaitingScanConfirm = false; // กันไม่ให้เด้ง popup ซ้อนกันถ้ากล้องยังสแกนต่อเนื่อง
+
+  async function processScannedCode(rawText){
     const code = String(rawText || '').trim().toUpperCase();
-    if(!code) return;
+    if(!code || awaitingScanConfirm) return;
     const now = Date.now();
     if(code === lastScannedCode && now - lastScannedAt < 4000) return;
     lastScannedCode = code; lastScannedAt = now;
-    checkInById(code);
+
+    const attendee = roster.find(a=> a.id === code);
+    if(!attendee){
+      showToast('ไม่พบรหัสนี้ในระบบ: ' + code, 'err');
+      flashScannerFrame('err');
+      return;
+    }
+    if(checkedInIds.has(attendee.id)){
+      showToast(attendee.name + ' เช็คอินไปแล้ว', 'warn');
+      flashScannerFrame('warn');
+      return;
+    }
+
+    awaitingScanConfirm = true;
+    try{
+      const confirmed = await showCheckinConfirm(attendee);
+      if(!confirmed){
+        lastScannedCode = ''; // ยกเลิกแล้วให้สแกนโค้ดเดิมซ้ำได้ทันที ไม่ต้องรอ debounce
+        return;
+      }
+      await checkInById(attendee.id);
+    } finally {
+      awaitingScanConfirm = false;
+    }
   }
 
   function setScannerUiRunning(running){
