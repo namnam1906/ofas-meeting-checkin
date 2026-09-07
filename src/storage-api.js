@@ -1,5 +1,6 @@
-// Cloudflare Pages Function: บาง REST endpoint ครอบ Cloudflare KV binding
-// แทนที่ window.storage ของ Claude Artifacts เดิม (ดู index.html: storeGet/storeSet/storeDelete/storeList)
+// ตัวจัดการ route /api/storage: REST endpoint บางๆ ครอบ Cloudflare KV binding
+// แทนที่ window.storage ของ Claude Artifacts เดิม (ดู public/index.html: storeGet/storeSet/storeDelete/storeList)
+// เรียกใช้จาก src/worker.js (Cloudflare Worker เดียวที่เสิร์ฟทั้ง static assets และ API นี้)
 //
 // Route: /api/storage
 //   GET    /api/storage?key=<key>            -> { value: string|null }
@@ -9,8 +10,8 @@
 //
 // ต้อง bind KV namespace ชื่อ STORAGE_KV ใน wrangler.toml (ดูไฟล์ wrangler.toml ใน repo นี้)
 //
-// การยืนยันตัวตน: ถ้าตั้งค่า environment variable STORAGE_TOKEN ไว้ใน Cloudflare Pages
-// (Settings > Environment variables, ตั้งเป็น Secret) ทุก request ต้องแนบ header
+// การยืนยันตัวตน: ถ้าตั้งค่า environment variable STORAGE_TOKEN ไว้ใน Cloudflare
+// (Settings > Variables and Secrets, ตั้งเป็น Secret) ทุก request ต้องแนบ header
 // `X-Storage-Token: <ค่าเดียวกัน>` ไม่งั้นจะได้ 401 — ถ้าไม่ตั้งค่าไว้เลย endpoint จะเปิดสาธารณะ
 // (ใช้ได้เฉพาะตอนพัฒนา/ทดสอบเท่านั้น ไม่ควรปล่อยแบบนี้ตอนใช้งานจริงกับข้อมูลส่วนบุคคล)
 
@@ -30,7 +31,7 @@ function authOk(request, env) {
   return request.headers.get('X-Storage-Token') === env.STORAGE_TOKEN;
 }
 
-export async function onRequestGet({ request, env }) {
+async function handleGet(request, env) {
   if (!authOk(request, env)) return unauthorized();
   const url = new URL(request.url);
   const prefix = url.searchParams.get('prefix');
@@ -52,7 +53,7 @@ export async function onRequestGet({ request, env }) {
   return json({ value });
 }
 
-export async function onRequestPut({ request, env }) {
+async function handlePut(request, env) {
   if (!authOk(request, env)) return unauthorized();
   let body;
   try {
@@ -66,11 +67,25 @@ export async function onRequestPut({ request, env }) {
   return json({ ok: true });
 }
 
-export async function onRequestDelete({ request, env }) {
+async function handleDelete(request, env) {
   if (!authOk(request, env)) return unauthorized();
   const url = new URL(request.url);
   const key = url.searchParams.get('key');
   if (!key) return json({ error: 'missing key' }, 400);
   await env.STORAGE_KV.delete(key);
   return json({ ok: true });
+}
+
+// เรียกจาก src/worker.js เมื่อ path ตรงกับ /api/storage
+export async function handleStorageRequest(request, env) {
+  switch (request.method.toUpperCase()) {
+    case 'GET':
+      return handleGet(request, env);
+    case 'PUT':
+      return handlePut(request, env);
+    case 'DELETE':
+      return handleDelete(request, env);
+    default:
+      return json({ error: 'method not allowed' }, 405);
+  }
 }
