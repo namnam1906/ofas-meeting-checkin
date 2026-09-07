@@ -155,10 +155,12 @@
   .mapping-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; margin:16px 0; }
   select{ width:100%; border:1px solid var(--line); padding:8px 8px; font-size:13.5px; background:var(--paper-2); }
 
-  table.preview{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px; }
-  table.preview th, table.preview td{ text-align:left; border-bottom:1px solid var(--line); padding:7px 8px; }
-  table.preview th{ color:var(--muted); font-weight:500; }
+  .preview-scroll{ max-height:360px; overflow-y:auto; overflow-x:auto; margin-top:10px; border:1px solid var(--line); }
+  table.preview{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.preview th, table.preview td{ text-align:left; border-bottom:1px solid var(--line); padding:7px 8px; white-space:nowrap; }
+  table.preview th{ color:var(--muted); font-weight:500; background:var(--paper-2); position:sticky; top:0; }
   table.preview td.name{ font-weight:500; }
+  table.preview td:first-child, table.preview th:first-child{ color:var(--muted); text-align:right; padding-right:10px; }
   .import-note{ font-size:12px; color:var(--muted); margin-top:8px; }
 
   /* ---------- badge / ticket stub ---------- */
@@ -376,7 +378,9 @@
           <select id="mapPhone"></select>
         </div>
       </div>
-      <table class="preview" id="previewTable"></table>
+      <div class="preview-scroll">
+        <table class="preview" id="previewTable"></table>
+      </div>
       <div class="btn-row">
         <button class="btn brass" id="confirmImportBtn">นำเข้ารายชื่อนี้</button>
         <button class="btn ghost" id="cancelImportBtn">ยกเลิก</button>
@@ -635,10 +639,11 @@
   function renderPreview(){
     if(!pendingImport) return;
     const map = currentMap();
-    const rows = pendingImport.rows.slice(0,5);
-    let html = '<thead><tr><th>คำนำหน้าชื่อ</th><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>สังกัด/หน่วยงาน</th><th>อีเมล</th><th>เบอร์โทร</th></tr></thead><tbody>';
-    rows.forEach(row=>{
+    const rows = pendingImport.rows;
+    let html = '<thead><tr><th>#</th><th>คำนำหน้าชื่อ</th><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>สังกัด/หน่วยงาน</th><th>อีเมล</th><th>เบอร์โทร</th></tr></thead><tbody>';
+    rows.forEach((row, i)=>{
       html += `<tr>
+        <td>${i + 1}</td>
         <td>${escapeHtml(map.title ? row[map.title] : '')}</td>
         <td class="name">${escapeHtml(map.name ? row[map.name] : '')}</td>
         <td>${escapeHtml(map.position ? row[map.position] : '')}</td>
