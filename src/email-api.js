@@ -18,7 +18,7 @@
 import { json, unauthorized, authOk } from './http-helpers.js';
 
 const GOOGLE_APPS_SCRIPT_ENDPOINT =
-  'https://script.google.com/macros/s/AKfycbzMxBeamBvTohljuQIrR1m5aoho2j9IgeaCeWrOGm0ooGVE0vwn38Y2enFwz0oTU775/exec';
+  'https://script.google.com/macros/s/AKfycbxlxjg4HaNejmTPwV75i2GN7TfG0qeFmM4rjtaRXc1ZI1j7MsqyED7JBM-hUeJ4mAtG/exec';
 
 export async function handleEmailRequest(request, env) {
   if (request.method.toUpperCase() !== 'POST') {

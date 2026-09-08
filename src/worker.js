@@ -1,7 +1,7 @@
 // จุดเข้า Cloudflare Worker เดียวสำหรับทั้งเว็บนี้:
 // - เสิร์ฟไฟล์ static ใน public/ (index.html และไฟล์อื่นๆ) ผ่าน env.ASSETS
 // - ยกเว้น path /api/storage ที่ส่งต่อให้ src/storage-api.js จัดการ (ครอบ Cloudflare KV)
-// - และ path /api/send-email ที่ส่งต่อให้ src/email-api.js จัดการ (ส่งอีเมลผ่าน Resend)
+// - และ path /api/send-email ที่ส่งต่อให้ src/email-api.js จัดการ (ส่งอีเมลผ่าน Google Apps Script)
 //
 // บัญชี Cloudflare นี้ deploy โปรเจกต์ผ่าน `wrangler deploy` (รูปแบบ Workers + assets ใหม่)
 // ไม่ใช่ Pages Functions รุ่นเก่า จึงรวม static hosting กับ API ไว้ในไฟล์เดียวนี้แทน
