@@ -1115,6 +1115,67 @@
     setTimeout(()=> window.print(), 80);
   }
 
+  // สร้างเนื้อหาอีเมล QR แบบมีหน้าตาเหมือนบัตรจริง (โทนสีเดียวกับหน้าเว็บ: หัวสีกรมท่า/ทอง)
+  // ใช้ table + inline style ล้วนเพื่อให้แสดงผลถูกต้องในอีเมลไคลเอนต์ทั่วไป (รวม Outlook)
+  // รูป QR อ้างอิงผ่าน cid:qrCode ซึ่งฝั่ง Google Apps Script ฝังเป็น inline image จาก
+  // attachment ที่ส่งไปให้ (ดู message.inlineImages ในสคริปต์ .gs)
+  function buildBadgeEmailHtml(a, currentEventName){
+    const positionRow = a.position ? `
+          <tr>
+            <td style="padding:10px 0;font-size:12px;color:#666C80;font-family:'IBM Plex Sans Thai',sans-serif;">ตำแหน่ง</td>
+            <td style="padding:10px 0;font-size:13px;color:#181C2E;text-align:right;font-family:'IBM Plex Sans Thai',sans-serif;">${escapeHtml(a.position)}</td>
+          </tr>` : '';
+    const orgRow = a.org ? `
+          <tr>
+            <td style="padding:10px 0;font-size:12px;color:#666C80;font-family:'IBM Plex Sans Thai',sans-serif;${a.position ? 'border-top:1px solid #DEDACC;' : ''}">หน่วยงาน</td>
+            <td style="padding:10px 0;font-size:13px;color:#181C2E;text-align:right;font-family:'IBM Plex Sans Thai',sans-serif;${a.position ? 'border-top:1px solid #DEDACC;' : ''}">${escapeHtml(a.org)}</td>
+          </tr>` : '';
+    const detailsBlock = (positionRow || orgRow) ? `
+      <tr><td style="padding:0 24px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #DEDACC;border-bottom:1px solid #DEDACC;">
+          ${positionRow}${orgRow}
+        </table>
+      </td></tr>` : '';
+
+    return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F2F0E9;padding:24px 12px;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border:1px solid #DEDACC;">
+      <tr><td style="background:#12172B;padding:26px 20px;text-align:center;">
+        <div style="font-size:11px;letter-spacing:0.08em;color:#C9A227;text-transform:uppercase;font-weight:600;margin-bottom:8px;font-family:'IBM Plex Sans Thai',sans-serif;">ระบบลงทะเบียนเข้าร่วมงาน</div>
+        <div style="font-size:19px;color:#FFFFFF;font-weight:700;font-family:'IBM Plex Sans Thai',sans-serif;">บัตรเข้าร่วมงานของคุณพร้อมแล้ว</div>
+      </td></tr>
+      <tr><td style="padding:28px 24px 8px;text-align:center;">
+        <div style="font-size:12px;color:#666C80;margin-bottom:4px;font-family:'IBM Plex Sans Thai',sans-serif;">ลงทะเบียนเข้าร่วม</div>
+        <div style="font-size:19px;color:#181C2E;font-weight:700;margin-bottom:14px;font-family:'IBM Plex Sans Thai',sans-serif;">${escapeHtml(currentEventName)}</div>
+        <div style="border-top:2px solid #B8902E;width:48px;margin:0 auto 20px;font-size:0;line-height:0;">&nbsp;</div>
+        <div style="font-size:12px;color:#666C80;margin-bottom:4px;font-family:'IBM Plex Sans Thai',sans-serif;">ผู้เข้าร่วมงาน</div>
+        <div style="font-size:17px;color:#181C2E;font-weight:700;margin-bottom:16px;font-family:'IBM Plex Sans Thai',sans-serif;">${escapeHtml(a.name)}</div>
+      </td></tr>${detailsBlock}
+      <tr><td style="padding:24px 24px 8px;text-align:center;">
+        <div style="font-size:12px;color:#666C80;margin-bottom:10px;font-family:'IBM Plex Sans Thai',sans-serif;">รหัสลงทะเบียน</div>
+        <div style="display:inline-block;background:#F3E9D2;border:1px solid #B8902E;padding:8px 22px;font-size:16px;font-weight:700;letter-spacing:0.08em;color:#181C2E;font-family:'IBM Plex Mono',monospace;">${escapeHtml(a.id)}</div>
+      </td></tr>
+      <tr><td style="padding:20px 24px 8px;text-align:center;">
+        <img src="cid:qrCode" width="180" height="180" alt="QR Code" style="display:block;margin:0 auto;border:1px solid #DEDACC;">
+      </td></tr>
+      <tr><td style="padding:20px 24px 28px;">
+        <div style="background:#F3E9D2;padding:14px 16px;text-align:center;font-size:12.5px;color:#181C2E;line-height:1.6;font-family:'IBM Plex Sans Thai',sans-serif;">
+          กรุณาแสดง QR Code นี้ที่จุดเช็คอินหน้างาน<br>
+          สามารถเปิดจากอีเมล หรือใช้รูป QR ที่แนบมากับอีเมลได้
+        </div>
+      </td></tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+      <tr><td style="padding:16px 24px;text-align:center;font-size:11px;color:#8A8F9E;line-height:1.6;font-family:'IBM Plex Sans Thai',sans-serif;">
+        อีเมลฉบับนี้ส่งโดยระบบลงทะเบียนเข้าร่วมงาน<br>
+        หากรูป QR Code ไม่แสดง สามารถแจ้งรหัส ${escapeHtml(a.id)} แก่เจ้าหน้าที่ได้
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
+  }
+
   async function doEmailBadges(targets){
     const withEmail = targets.filter(a=> a.email);
     const withoutEmail = targets.length - withEmail.length;
@@ -1134,12 +1195,7 @@
       const dataUrl = getBadgeQrDataUrl(a.id);
       const contentBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : '';
       const currentEventName = eventName || 'งานอีเวนต์';
-      const html = `
-        <p>สวัสดีคุณ ${escapeHtml(a.name)},</p>
-        <p>นี่คือรหัสสำหรับเช็คอินเข้างาน "${escapeHtml(currentEventName)}"</p>
-        <p>รหัสของคุณคือ: <b>${a.id}</b></p>
-        <p>โปรดแสดงรูป QR Code ที่แนบมานี้ที่หน้างานเพื่อเช็คอิน</p>
-      `;
+      const html = buildBadgeEmailHtml(a, currentEventName);
       const subject = `บัตรเข้างาน: ${currentEventName}`;
       try{
         const res = await fetch('/api/send-email', {
