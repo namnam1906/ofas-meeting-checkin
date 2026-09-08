@@ -182,17 +182,6 @@
   .select-all-label{ display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; }
   .selected-count{ font-size:12.5px; color:var(--text); }
   .selection-bar-buttons{ display:flex; gap:8px; margin-left:auto; }
-  .test-mode-row{
-    display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text);
-    width:100%; padding-top:10px; margin-top:2px; border-top:1px solid var(--brass);
-    cursor:pointer; user-select:none;
-  }
-  .test-mode-row[hidden]{ display:none; }
-  .test-mode-row input[type=email]{
-    border:1px solid var(--line); padding:5px 8px; font-size:12.5px; background:var(--paper-2);
-    width:200px; cursor:text;
-  }
-
   /* ---------- generic confirm modal (ใช้กับยืนยันเช็คอินจากการสแกน) ---------- */
   .modal-overlay{
     position:fixed; inset:0; background:rgba(18,23,43,0.55); z-index:60;
@@ -482,11 +471,6 @@
         <button class="btn brass small" id="confirmSelectionBtn"></button>
         <button class="btn ghost small" id="cancelSelectionBtn">ยกเลิก</button>
       </div>
-      <label class="test-mode-row" id="emailTestModeRow" hidden>
-        <input type="checkbox" id="emailTestModeCheckbox">
-        โหมดทดสอบ: ส่งทุกฉบับไปที่
-        <input type="email" id="emailTestModeAddress" placeholder="you@example.com">
-      </label>
     </div>
     <div class="badges-grid" id="badgesGrid"></div>
   </section>
@@ -991,10 +975,6 @@
     document.getElementById('selectionBar').hidden = false;
     document.getElementById('selectionBarLabel').textContent = SELECTION_MODE_INFO[action].label;
     document.getElementById('badgesGrid').classList.add('selecting');
-    document.getElementById('emailTestModeRow').hidden = action !== 'email';
-    document.getElementById('emailTestModeCheckbox').checked = false;
-    document.getElementById('emailTestModeAddress').value = '';
-    document.getElementById('emailTestModeAddress').disabled = true;
     renderBadges();
   }
 
@@ -1006,11 +986,6 @@
     document.getElementById('badgesGrid').classList.remove('selecting');
     renderBadges();
   }
-
-  document.getElementById('emailTestModeCheckbox').addEventListener('change', (e)=>{
-    document.getElementById('emailTestModeAddress').disabled = !e.target.checked;
-    if(e.target.checked) document.getElementById('emailTestModeAddress').focus();
-  });
 
   document.getElementById('printBtn').addEventListener('click', ()=>{
     if(!roster.length){ showToast('ยังไม่มีผู้ลงทะเบียน', 'warn'); return; }
@@ -1145,25 +1120,14 @@
     const withoutEmail = targets.length - withEmail.length;
     if(!withEmail.length){ showToast('รายการที่เลือกไม่มีอีเมลเลย', 'warn'); return; }
 
-    // โหมดทดสอบ: ส่งทุกฉบับไปที่อีเมลเดียว (เผื่ออยากลองดูหน้าตาอีเมลก่อนส่งจริงให้ทุกคน) —
-    // เนื้อหาแต่ละฉบับยังใส่ชื่อ/รหัสของคนนั้นๆ ถูกต้อง แค่ที่อยู่ผู้รับถูกเปลี่ยนเป็นอีเมลทดสอบแทน
-    const testModeOn = document.getElementById('emailTestModeCheckbox').checked;
-    const testAddress = document.getElementById('emailTestModeAddress').value.trim();
-    if(testModeOn && !testAddress){
-      showToast('กรุณากรอกอีเมลปลายทางสำหรับโหมดทดสอบ', 'warn');
-      return;
-    }
-
-    const confirmMsg = testModeOn
-      ? `[โหมดทดสอบ] ส่งอีเมล QR ของ ${withEmail.length} คนไปที่ ${testAddress} ทั้งหมด${withoutEmail ? ` (ข้าม ${withoutEmail} คนที่ไม่มีอีเมล)` : ''}?`
-      : `ส่งอีเมล QR ให้ ${withEmail.length} คนที่มีอีเมล${withoutEmail ? ` (ข้าม ${withoutEmail} คนที่ไม่มีอีเมล)` : ''}?`;
+    const confirmMsg = `ส่งอีเมล QR ให้ ${withEmail.length} คนที่มีอีเมล${withoutEmail ? ` (ข้าม ${withoutEmail} คนที่ไม่มีอีเมล)` : ''}?`;
     if(!confirm(confirmMsg)) return;
 
     const btn = document.getElementById('confirmSelectionBtn');
     btn.disabled = true;
     let sent = 0, failed = 0;
     let lastErrorMsg = ''; // เก็บข้อความ error ล่าสุดไว้โชว์ตอนจบ ช่วยวินิจฉัยว่าทำไมส่งไม่สำเร็จ
-    const sentIds = []; // เก็บ id ที่ส่งสำเร็จ (เฉพาะตอนไม่ใช่โหมดทดสอบ) ไว้อัปเดต Email Status
+    const sentIds = []; // เก็บ id ที่ส่งสำเร็จไว้อัปเดต Email Status
     for(let i = 0; i < withEmail.length; i++){
       const a = withEmail[i];
       btn.textContent = `กำลังส่ง (${i + 1}/${withEmail.length})...`;
@@ -1171,21 +1135,18 @@
       const contentBase64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : '';
       const currentEventName = eventName || 'งานอีเวนต์';
       const html = `
-        ${testModeOn ? `<p style="color:#B4791C">[โหมดทดสอบ] ฉบับนี้ตั้งใจจะส่งถึง: ${escapeHtml(a.name)} &lt;${escapeHtml(a.email)}&gt;</p>` : ''}
         <p>สวัสดีคุณ ${escapeHtml(a.name)},</p>
         <p>นี่คือรหัสสำหรับเช็คอินเข้างาน "${escapeHtml(currentEventName)}"</p>
         <p>รหัสของคุณคือ: <b>${a.id}</b></p>
         <p>โปรดแสดงรูป QR Code ที่แนบมานี้ที่หน้างานเพื่อเช็คอิน</p>
       `;
-      const subject = testModeOn
-        ? `[ทดสอบ] บัตรเข้างาน: ${currentEventName} (${a.name})`
-        : `บัตรเข้างาน: ${currentEventName}`;
+      const subject = `บัตรเข้างาน: ${currentEventName}`;
       try{
         const res = await fetch('/api/send-email', {
           method: 'POST',
           headers: apiHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
-            to: testModeOn ? testAddress : a.email,
+            to: a.email,
             subject,
             html,
             attachment: contentBase64 ? { filename: `QR_${a.id}.png`, contentBase64 } : undefined,
@@ -1193,7 +1154,7 @@
         });
         if(res.ok){
           sent++;
-          if(!testModeOn) sentIds.push(a.id); // โหมดทดสอบไม่ถือว่าส่งถึงตัวจริง ไม่นับ Email Status
+          sentIds.push(a.id);
         } else {
           failed++;
           const errData = await res.json().catch(()=> ({}));
