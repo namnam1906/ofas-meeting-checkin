@@ -1855,6 +1855,17 @@
     if(name){ eventName = name; eventNameInput.value = name; }
     const rosterRaw = await storeGet('roster', true);
     roster = rosterRaw ? JSON.parse(rosterRaw) : [];
+
+    // เผื่อรายชื่อบางคนถูกนำเข้าไว้ก่อนจะมี field ประทับเวลา (registeredAt) ทำให้คอลัมน์
+    // "ประทับเวลา" ในไฟล์ export ว่างตลอดไม่ว่าจะกดดาวน์โหลดกี่รอบ — เติมให้เป็นเวลาปัจจุบัน
+    // ครั้งเดียวแล้วบันทึกกลับ KV ให้ค่าคงที่ตั้งแต่นั้น
+    const missingTimestamp = roster.filter(a=> !a.registeredAt);
+    if(missingTimestamp.length){
+      const now = new Date().toISOString();
+      missingTimestamp.forEach(a=> a.registeredAt = now);
+      await storeSet('roster', JSON.stringify(roster), true);
+    }
+
     const keys = await storeList('checkin:', true);
     const ids = keys.map(k=> k.slice('checkin:'.length));
     checkedInIds = new Set(ids);
