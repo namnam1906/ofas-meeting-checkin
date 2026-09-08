@@ -1144,6 +1144,7 @@
     const btn = document.getElementById('confirmSelectionBtn');
     btn.disabled = true;
     let sent = 0, failed = 0;
+    let lastErrorMsg = ''; // เก็บข้อความ error ล่าสุดไว้โชว์ตอนจบ ช่วยวินิจฉัยว่าทำไมส่งไม่สำเร็จ
     const sentIds = []; // เก็บ id ที่ส่งสำเร็จ (เฉพาะตอนไม่ใช่โหมดทดสอบ) ไว้อัปเดต Email Status
     for(let i = 0; i < withEmail.length; i++){
       const a = withEmail[i];
@@ -1175,8 +1176,17 @@
         if(res.ok){
           sent++;
           if(!testModeOn) sentIds.push(a.id); // โหมดทดสอบไม่ถือว่าส่งถึงตัวจริง ไม่นับ Email Status
-        } else failed++;
-      } catch(e){ failed++; }
+        } else {
+          failed++;
+          const errData = await res.json().catch(()=> ({}));
+          lastErrorMsg = errData.error || `HTTP ${res.status}`;
+          console.error('ส่งอีเมลไม่สำเร็จ:', a.email, res.status, errData);
+        }
+      } catch(e){
+        failed++;
+        lastErrorMsg = e.message || String(e);
+        console.error('ส่งอีเมลไม่สำเร็จ (network):', a.email, e);
+      }
       if(i < withEmail.length - 1) await new Promise(r=> setTimeout(r, 400));
     }
 
@@ -1196,7 +1206,8 @@
 
     btn.disabled = false;
     exitSelectionMode();
-    showToast(`ส่งอีเมลสำเร็จ ${sent} คน${failed ? `, ล้มเหลว ${failed} คน` : ''}`, failed ? 'warn' : 'ok');
+    const failMsg = failed ? `, ล้มเหลว ${failed} คน${lastErrorMsg ? ` (${lastErrorMsg})` : ''}` : '';
+    showToast(`ส่งอีเมลสำเร็จ ${sent} คน${failMsg}`, failed ? (sent ? 'warn' : 'err') : 'ok');
   }
 
   async function doDeleteBadges(targets){
@@ -1681,6 +1692,13 @@
     return csvContent;
   }
 
+  // ให้ชื่อไฟล์ export ทุกไฟล์ลงท้ายด้วยวันที่_เวลาปัจจุบันเสมอ กันไฟล์ทับกันเวลาโหลดหลายรอบ
+  function currentTimestampSuffix(){
+    const d = new Date();
+    const pad = (n)=> String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  }
+
   function downloadTextFile(filename, content){
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1713,7 +1731,7 @@
       const checkinTimes = await fetchAllCheckinTimes();
       const currentEventName = eventName || 'ไม่ระบุชื่องาน';
       const sorted = roster.slice().sort((a, b)=> new Date(a.registeredAt || 0) - new Date(b.registeredAt || 0));
-      downloadTextFile(`ข้อมูลลงทะเบียน_${currentEventName}.csv`, buildMasterCsv(sorted, checkinTimes));
+      downloadTextFile(`ข้อมูลลงทะเบียน_${currentEventName}_${currentTimestampSuffix()}.csv`, buildMasterCsv(sorted, checkinTimes));
     } catch(e){
       console.error(e);
       showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
@@ -1742,7 +1760,7 @@
         return tA - tB;
       });
 
-      downloadTextFile(`รายงานเช็คอิน_${currentEventName}.csv`, buildMasterCsv(checkedInAttendees, checkinTimes));
+      downloadTextFile(`รายงานเช็คอิน_${currentEventName}_${currentTimestampSuffix()}.csv`, buildMasterCsv(checkedInAttendees, checkinTimes));
     } catch(e) {
       console.error(e);
       showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
