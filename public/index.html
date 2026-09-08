@@ -551,7 +551,7 @@
         </div>
 
         <div class="export-zone" style="margin-top:22px; padding-top:18px; border-top:1px solid var(--line);">
-          <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">ส่งออกข้อมูลผู้ที่เช็คอินแล้วเป็นไฟล์ CSV (เปิดด้วย Excel ได้)</p>
+          <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">ส่งออกข้อมูลลงทะเบียนทั้งหมดเป็นไฟล์ CSV (เปิดด้วย Excel ได้) — รายงานเดียวกับปุ่ม "ดาวน์โหลดข้อมูล" ในแท็บออกบัตร QR คอลัมน์ Attendance จะมีวันที่/เวลาเฉพาะคนที่เช็คอินแล้ว</p>
           <button class="btn brass small" id="exportBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> ดาวน์โหลดรายงานเช็คอิน</button>
         </div>
 
@@ -1775,9 +1775,11 @@
     return checkinTimes;
   }
 
-  document.getElementById('exportRosterBtn').addEventListener('click', async ()=>{
+  // ปุ่ม "ดาวน์โหลดข้อมูล" (แท็บออกบัตร QR) และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน)
+  // เป็นรายงานเดียวกัน อิงจากข้อมูลลงทะเบียนทั้งหมดเสมอ (ไม่กรองเฉพาะคนที่เช็คอินแล้ว) —
+  // คอลัมน์ Attendance จะว่างสำหรับคนที่ยังไม่เช็คอินโดยธรรมชาติของ buildMasterCsv() อยู่แล้ว
+  async function exportRegistrationCsv(btn){
     if(!roster.length){ showToast('ยังไม่มีผู้ลงทะเบียน', 'warn'); return; }
-    const btn = document.getElementById('exportRosterBtn');
     const originalHtml = btn.innerHTML; // เก็บ HTML ไว้ (มีไอคอน svg อยู่ด้วย) ไม่ใช้ textContent เพราะจะทำไอคอนหาย
     btn.disabled = true; btn.textContent = 'กำลังเตรียมไฟล์...';
     try{
@@ -1791,38 +1793,10 @@
     } finally {
       btn.disabled = false; btn.innerHTML = originalHtml;
     }
-  });
+  }
 
-  document.getElementById('exportBtn').addEventListener('click', async ()=>{
-    if(checkedInIds.size === 0) {
-      showToast('ยังไม่มีข้อมูลผู้ที่เช็คอินให้ดาวน์โหลด', 'warn');
-      return;
-    }
-    const btn = document.getElementById('exportBtn');
-    const originalHtml = btn.innerHTML; // เก็บ HTML ไว้ (มีไอคอน svg อยู่ด้วย) ไม่ใช้ textContent เพราะจะทำไอคอนหาย
-    btn.disabled = true;
-    btn.textContent = 'กำลังเตรียมไฟล์...';
-    try {
-      const checkinTimes = await fetchAllCheckinTimes();
-      const currentEventName = eventName || 'ไม่ระบุชื่องาน';
-
-      // ดึงเฉพาะคนที่เช็คอินแล้ว และจัดเรียงตามเวลาเช็คอิน
-      const checkedInAttendees = roster.filter(a => checkedInIds.has(a.id));
-      checkedInAttendees.sort((a, b) => {
-        const tA = new Date(checkinTimes[a.id] || 0).getTime();
-        const tB = new Date(checkinTimes[b.id] || 0).getTime();
-        return tA - tB;
-      });
-
-      downloadTextFile(`รายงานเช็คอิน_${currentEventName}_${currentTimestampSuffix()}.csv`, buildMasterCsv(checkedInAttendees, checkinTimes));
-    } catch(e) {
-      console.error(e);
-      showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-    }
-  });
+  document.getElementById('exportRosterBtn').addEventListener('click', (e)=> exportRegistrationCsv(e.currentTarget));
+  document.getElementById('exportBtn').addEventListener('click', (e)=> exportRegistrationCsv(e.currentTarget));
 
   async function resetAllData(btn){
     if(!confirm('ล้างรายชื่อผู้ลงทะเบียนและสถานะเช็คอินทั้งหมดของงานนี้? การกระทำนี้ย้อนกลับไม่ได้')) return;
