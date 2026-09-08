@@ -59,7 +59,7 @@
 public/index.html     หน้าเว็บทั้งหมด (static, ไม่มี build step)
 src/worker.js          Cloudflare Worker entry point — เสิร์ฟ static assets + route /api/storage และ /api/send-email
 src/storage-api.js     ตัวจัดการ REST /api/storage ครอบ Cloudflare KV
-src/email-api.js       ตัวจัดการ REST /api/send-email ส่งอีเมล QR ผ่าน Resend
+src/email-api.js       ตัวจัดการ REST /api/send-email ส่งอีเมล QR ผ่าน Google Apps Script Web App
 src/http-helpers.js    ฟังก์ชันช่วยที่ใช้ร่วมกัน (json response, ตรวจ STORAGE_TOKEN)
 wrangler.toml          config ผูก assets directory + KV binding
 ```
@@ -110,22 +110,22 @@ npx wrangler deploy
 - **ส่งอีเมล QR** — ส่งเฉพาะคนที่มีอีเมล (ข้ามคนที่ไม่มีอีเมลอัตโนมัติ พร้อมสรุปจำนวนสำเร็จ/ล้มเหลว)
 - **ลบข้อมูล** — ลบทั้งรายชื่อและสถานะเช็คอินของคนที่เลือกไว้ ย้อนกลับไม่ได้
 
-### ตั้งค่าการส่งอีเมล QR (Resend)
+### ตั้งค่าการส่งอีเมล QR (Google Apps Script)
 
-Cloudflare Workers เองส่งอีเมลไม่ได้ ฟีเจอร์นี้พึ่งบริการภายนอก [Resend](https://resend.com) (มี free tier) ผ่าน `src/email-api.js`:
+Cloudflare Workers เองส่งอีเมลไม่ได้ ฟีเจอร์นี้พึ่งบริการภายนอก — เดิมใช้ [Resend](https://resend.com) แต่บัญชีที่ยังไม่ verify โดเมนจะส่งได้แค่หาอีเมลตัวเองเท่านั้น จึงเปลี่ยนมาใช้ **Google Apps Script Web App** ที่ผูกกับบัญชี Google Workspace ของหน่วยงานแทน (โค้ดอยู่ที่ repo แยก [ofas-meeting-checkin-v2](https://github.com/namnam1906/ofas-meeting-checkin-v2)) ซึ่งส่งถึงผู้ลงทะเบียนจริงได้ทุกคนทันที ไม่ติดข้อจำกัด sandbox แบบ Resend — โควตาส่งอีเมลอยู่ที่ประมาณ 100 ฉบับ/วันสำหรับบัญชี Gmail ทั่วไป หรือ 1,500 ฉบับ/วันสำหรับบัญชี Workspace
 
-1. สมัครบัญชีที่ resend.com แล้วสร้าง **API key**
-2. Worker `ofas-checkin` → **Settings > Variables and Secrets** → Add secret ชื่อ `RESEND_API_KEY` = ค่า API key ที่ได้
+ฝั่ง Apps Script (ทำไปแล้วครั้งเดียวตอนตั้งระบบ):
+1. เขียนสคริปต์ `doPost(e)` ที่รับ `{token, to, subject, html, attachment}` แล้วส่งอีเมลผ่าน `MailApp.sendEmail(...)` — ตรวจ `token` เทียบกับ Script Property ชื่อ `API_TOKEN` ก่อนทุกครั้งกันคนนอกยิง request ตรงมา
+2. Deploy > New deployment > Web app (Execute as: Me, Who has access: Anyone) แล้วคัดลอกลิงก์ที่ลงท้ายด้วย `/exec`
+3. Project Settings > Script Properties → เพิ่ม `API_TOKEN` เป็นรหัสลับที่ตั้งขึ้นเอง
 
-⚠️ **ข้อจำกัดตอนยังไม่ verify โดเมน:** ถ้ายังไม่ได้เพิ่ม/verify โดเมนของหน่วยงาน (เช่น `ofas.go.th`) กับ Resend ระบบจะส่งจาก sender ทดสอบ `onboarding@resend.dev` ได้ และ **ส่งถึงได้แค่อีเมลที่ใช้สมัครบัญชี Resend เท่านั้น** — ส่งหาอีเมลผู้ลงทะเบียนคนอื่นจะ error ("You can only send testing emails to your own email address") จนกว่าจะ verify โดเมนตัวเอง
+ฝั่ง Cloudflare Worker `ofas-checkin`:
+- ลิงก์ `/exec` จากขั้นตอนที่ 2 ถูกฝังไว้ตรงๆ ใน `src/email-api.js` (ตัวแปร `GOOGLE_APPS_SCRIPT_ENDPOINT`) — เปลี่ยนได้โดยแก้ไฟล์นี้แล้ว deploy ใหม่ ถ้า deploy ใหม่ (URL เปลี่ยน) ในอนาคต
+- **Settings > Variables and Secrets** → เพิ่ม Secret ชื่อ `GOOGLE_APPS_SCRIPT_TOKEN` = ค่าเดียวกับ `API_TOKEN` ที่ตั้งไว้ในขั้นตอนที่ 3
 
-**โหมดทดสอบ (ส่งทุกฉบับไปที่อีเมลเดียว)** — ในหน้าเลือกรายการก่อนส่ง (หลังกดปุ่ม "ส่งอีเมล QR") มี checkbox "โหมดทดสอบ: ส่งทุกฉบับไปที่ ..." ให้ติ๊กเปิด แล้วกรอกอีเมลของตัวเอง (ที่ใช้สมัคร Resend ไว้) — ระบบจะส่งทุกฉบับไปที่อีเมลนั้นแทนอีเมลจริงของแต่ละคน โดยเนื้อหาแต่ละฉบับยังใส่ชื่อ/รหัสของคนนั้นๆ ถูกต้อง (มีข้อความกำกับไว้ว่าฉบับนี้ตั้งใจส่งถึงใคร) ใช้ทดสอบได้เลยโดยไม่ต้อง verify โดเมนก่อน
+**โหมดทดสอบ (ส่งทุกฉบับไปที่อีเมลเดียว)** — ในหน้าเลือกรายการก่อนส่ง (หลังกดปุ่ม "ส่งอีเมล QR") มี checkbox "โหมดทดสอบ: ส่งทุกฉบับไปที่ ..." ให้ติ๊กเปิด แล้วกรอกอีเมลที่ต้องการดูตัวอย่าง — ระบบจะส่งทุกฉบับไปที่อีเมลนั้นแทนอีเมลจริงของแต่ละคน โดยเนื้อหาแต่ละฉบับยังใส่ชื่อ/รหัสของคนนั้นๆ ถูกต้อง (มีข้อความกำกับไว้ว่าฉบับนี้ตั้งใจส่งถึงใคร) ใช้ดูตัวอย่างก่อนส่งจริงให้ทุกคนได้
 
-เมื่อพร้อมใช้งานจริง (verify โดเมนแล้ว):
-1. Resend dashboard → Domains → Add Domain → เพิ่ม DNS record (TXT/MX) ตามที่ Resend กำหนดในโดเมนของหน่วยงาน แล้วรอ verify
-2. ตั้ง Secret เพิ่มอีกตัวชื่อ `EMAIL_FROM` เป็นอีเมลที่ verify แล้ว เช่น `checkin@ofas.go.th` (ถ้าไม่ตั้งไว้ ระบบจะ fallback ไปใช้ `onboarding@resend.dev` เสมอ)
-
-`/api/send-email` ใช้ token ยืนยันตัวตนตัวเดียวกับ `/api/storage` (`STORAGE_TOKEN`) อยู่แล้ว ไม่ต้องตั้งเพิ่ม
+`/api/send-email` (ฝั่ง client → Worker) ใช้ token ยืนยันตัวตนตัวเดียวกับ `/api/storage` (`STORAGE_TOKEN`) อยู่แล้ว ไม่ต้องตั้งเพิ่ม ส่วนฝั่ง Worker → Apps Script ใช้ `GOOGLE_APPS_SCRIPT_TOKEN` แยกต่างหากตามด้านบน
 
 ### ความปลอดภัยของข้อมูล
 
