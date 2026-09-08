@@ -10,9 +10,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.7.0/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<!-- SheetJS: สร้างไฟล์ .xlsx จริงสำหรับปุ่มดาวน์โหลดข้อมูล/รายงานเช็คอิน แทน CSV ธรรมดา
-     เพราะ CSV ไม่มีความสามารถกำหนดความสูงแถว (row height) ทำให้เปิดแล้วเห็นรูป QR (=IMAGE(...)) ไม่เต็ม -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- ExcelJS: สร้างไฟล์ .xlsx จริงสำหรับปุ่มดาวน์โหลดข้อมูล/รายงานเช็คอิน แทน CSV ธรรมดา — ใช้ ExcelJS
+     แทน SheetJS เพราะรุ่นฟรีของ SheetJS ฝังรูปภาพจริงลงเซลล์ไม่ได้ (รองรับแค่สูตร =IMAGE() ของ Google
+     ชีตซึ่ง Excel จริงไม่รู้จัก) ส่วน ExcelJS ฝังรูป QR จริงพร้อมกำหนดความสูงแถวได้ในตัว -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <!-- ต้องตั้งค่า Secret ชื่อ STORAGE_TOKEN ที่ค่าเดียวกันนี้ไว้ที่ฝั่ง Cloudflare Worker
      (Settings > Variables and Secrets) ไม่งั้น /api/storage จะปฏิเสธ request ทั้งหมด (401) -->
 <script>window.STORAGE_CLIENT_TOKEN = 'YYA52AoxgjTQyZq6BvTfFopLuieYLpo4fRmB0qAQ';</script>
@@ -1699,49 +1700,73 @@
     return isNaN(d.getTime()) ? a.registeredAt : formatCheckinTimeForCsv(d);
   }
 
-  // สูตร IMAGE(...) ของ Google ชีต ใช้ quickchart.io สร้างรูป QR จากรหัสตรงๆ — ตรงกับ
-  // template ที่ใช้งานอยู่เดิม พอเปิดเป็น Google ชีตจะเห็นรูป QR ขึ้นในคอลัมน์นี้ทันที
-  // (Excel ทั่วไปจะเห็นเป็นข้อความสูตรเฉยๆ ไม่ได้ render เป็นรูป — ข้อจำกัดของฟังก์ชันนี้เอง
-  // ไม่เกี่ยวกับไฟล์ .xlsx หรือ .csv)
-  function qrImageFormula(id){
-    return `IMAGE("https://quickchart.io/qr?text=${id}&size=150")`;
+  // แต่เดิมคอลัมน์ QR Code Image ใช้สูตร =IMAGE(...) ของ Google ชีต (อาศัย quickchart.io สร้างรูป
+  // จาก id) แต่สูตรนี้เป็นฟังก์ชันเฉพาะของ Google ชีตเท่านั้น พอเปิดไฟล์ .xlsx จริงด้วย Excel จะไม่รู้จัก
+  // ฟังก์ชันนี้เลย ขึ้น #NAME? แทนที่จะเห็นรูป จึงเปลี่ยนมาสร้างรูป QR จริงๆ ด้วย qrcodejs (ไลบรารีเดียว
+  // กับที่ใช้ออกบัตร) แล้วฝังเป็นรูปภาพจริงลงในเซลล์ผ่าน ExcelJS (SheetJS รุ่นฟรีไม่รองรับการฝังรูปภาพ)
+  // วิธีนี้เห็นรูป QR ทันทีไม่ว่าจะเปิดด้วย Excel หรือ Google ชีต
+  const XLSX_ROW_HEIGHT_PT = 50; // หน่วยเดียวกับที่ Excel ใช้แสดงในกล่อง "ความสูงแถว" พอดี
+  const QR_IMAGE_PX = 60;
+
+  // สร้างรูป QR เป็น PNG data URL แบบ off-screen (ไม่ต้องแสดงบนหน้าจอจริง) ด้วย qrcodejs ตัวเดียว
+  // กับที่ใช้ในแท็บออกบัตร QR — คืนค่าว่างถ้าสร้างไม่สำเร็จ (กันไฟล์ export พังทั้งไฟล์เพราะคนเดียว)
+  function generateQrPngDataUrl(id, sizePx){
+    try{
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '-9999px';
+      document.body.appendChild(container);
+      new QRCode(container, {text: id, width: sizePx, height: sizePx, colorDark:'#12172B', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M});
+      const canvas = container.querySelector('canvas');
+      const img = container.querySelector('img');
+      let dataUrl = '';
+      if(canvas && canvas.toDataURL) dataUrl = canvas.toDataURL('image/png');
+      else if(img && img.src) dataUrl = img.src;
+      document.body.removeChild(container);
+      return dataUrl;
+    } catch(e){
+      console.error('สร้างรูป QR สำหรับ export ไม่สำเร็จ', e);
+      return '';
+    }
   }
 
-  // สร้างแถวข้อมูลตาม template กลาง: ประทับเวลา, ชื่อ-สกุล, อีเมล, Registration ID,
-  // Email Status, Attendance, QR Code Image — ใช้ร่วมกันทั้งปุ่ม "ดาวน์โหลดข้อมูล"
-  // (แท็บออกบัตร QR) และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน)
-  // ก่อนหน้านี้ export เป็น .csv ธรรมดา แต่ CSV เป็นข้อความล้วนไม่มีที่เก็บ style/ความสูงแถว
-  // เลย ทำให้เปิดไฟล์แล้วรูป QR (สูตร IMAGE ด้านบน) โผล่มาแต่แถวเตี้ยจนมองไม่เห็นรูป ต้อง
-  // ปรับความสูงแถวเองทุกครั้ง จึงเปลี่ยนมาสร้างเป็นไฟล์ .xlsx จริงด้วย SheetJS แทน เพราะ
-  // กำหนดความสูงแถว (ws['!rows']) ฝังไปในไฟล์ได้เลย เปิดมาก็เห็นรูปพอดีทันที และเป็นผลพลอยได้
-  // คือคอลัมน์ประทับเวลา/Attendance เก็บเป็นข้อความ (t:'s') ตรงๆ ไม่ต้องพึ่งสูตร ="..." กันการ
-  // ตีความเป็นวันที่ผิดๆ แบบตอนเป็น CSV อีกต่อไป
-  const XLSX_ROW_HEIGHT_PX = 50;
+  // สร้างไฟล์ .xlsx จริงด้วย ExcelJS ตาม template กลาง: ประทับเวลา, ชื่อ-สกุล, อีเมล, Registration ID,
+  // Email Status, Attendance, QR Code Image — ใช้ร่วมกันทั้งปุ่ม "ดาวน์โหลดข้อมูล" (แท็บออกบัตร QR)
+  // และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน) — คืนค่าเป็น ArrayBuffer พร้อมดาวน์โหลด
+  async function buildMasterWorkbookBuffer(attendees, checkinTimes){
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('ข้อมูลลงทะเบียน');
+    ws.columns = [
+      { header: 'ประทับเวลา', width: 20 },
+      { header: 'ชื่อ-สกุล', width: 24 },
+      { header: 'อีเมล', width: 28 },
+      { header: 'Registration ID', width: 14 },
+      { header: 'Email Status', width: 12 },
+      { header: 'Attendance', width: 20 },
+      { header: 'QR Code Image', width: 12 },
+    ];
+    ws.getRow(1).height = 22;
 
-  function buildMasterWorksheet(attendees, checkinTimes){
-    const header = ['ประทับเวลา', 'ชื่อ-สกุล', 'อีเมล', 'Registration ID', 'Email Status', 'Attendance', 'QR Code Image'];
-    const rows = [header];
     for(const a of attendees){
       const timeStr = checkinTimes[a.id];
       const attendance = timeStr ? formatCheckinTimeForCsv(new Date(timeStr)) : '';
       const emailStatus = a.emailStatus === 'sent' ? 'ส่งแล้ว' : '';
-      rows.push([formatTimestampForCsv(a), a.name, a.email || '', a.id, emailStatus, attendance, '']);
+      const row = ws.addRow([formatTimestampForCsv(a), a.name, a.email || '', a.id, emailStatus, attendance, '']);
+      row.height = XLSX_ROW_HEIGHT_PT;
+
+      const dataUrl = generateQrPngDataUrl(a.id, 150);
+      if(dataUrl){
+        const imageId = wb.addImage({ base64: dataUrl, extension: 'png' });
+        ws.addImage(imageId, {
+          tl: { col: 6, row: row.number - 1 },
+          ext: { width: QR_IMAGE_PX, height: QR_IMAGE_PX },
+          editAs: 'oneCell',
+        });
+      }
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const dateCols = [0, 5]; // ประทับเวลา, Attendance — บังคับเก็บเป็นข้อความล้วน กัน Excel/Google ชีตตีความเป็นวันที่เอง
-    for(let r = 1; r < rows.length; r++){
-      dateCols.forEach((c)=>{
-        const ref = XLSX.utils.encode_cell({ r, c });
-        ws[ref] = { t: 's', v: rows[r][c] || '' };
-      });
-      const qrRef = XLSX.utils.encode_cell({ r, c: 6 });
-      ws[qrRef] = { t: 'n', f: qrImageFormula(rows[r][3]), v: 0 };
-    }
-
-    ws['!rows'] = rows.map((_, r)=> ({ hpx: r === 0 ? 22 : XLSX_ROW_HEIGHT_PX }));
-    ws['!cols'] = [{ wch: 20 }, { wch: 24 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 22 }];
-    return ws;
+    return wb.xlsx.writeBuffer();
   }
 
   // ให้ชื่อไฟล์ export ทุกไฟล์ลงท้ายด้วยวันที่_เวลาปัจจุบันเสมอ กันไฟล์ทับกันเวลาโหลดหลายรอบ
@@ -1751,10 +1776,16 @@
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   }
 
-  function downloadWorksheetAsXlsx(filename, ws){
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'ข้อมูลลงทะเบียน');
-    XLSX.writeFile(wb, filename);
+  function downloadXlsxBuffer(filename, buffer){
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   // ดึงเวลาเช็คอินจริงของทุกคนจาก KV มาเป็น map { id: isoTimeString }
@@ -1770,7 +1801,7 @@
 
   // ปุ่ม "ดาวน์โหลดข้อมูล" (แท็บออกบัตร QR) และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน)
   // เป็นรายงานเดียวกัน อิงจากข้อมูลลงทะเบียนทั้งหมดเสมอ (ไม่กรองเฉพาะคนที่เช็คอินแล้ว) —
-  // คอลัมน์ Attendance จะว่างสำหรับคนที่ยังไม่เช็คอินโดยธรรมชาติของ buildMasterWorksheet() อยู่แล้ว
+  // คอลัมน์ Attendance จะว่างสำหรับคนที่ยังไม่เช็คอินโดยธรรมชาติของ buildMasterWorkbookBuffer() อยู่แล้ว
   async function exportRegistrationXlsx(btn){
     if(!roster.length){ showToast('ยังไม่มีผู้ลงทะเบียน', 'warn'); return; }
     const originalHtml = btn.innerHTML; // เก็บ HTML ไว้ (มีไอคอน svg อยู่ด้วย) ไม่ใช้ textContent เพราะจะทำไอคอนหาย
@@ -1779,8 +1810,8 @@
       const checkinTimes = await fetchAllCheckinTimes();
       const currentEventName = eventName || 'ไม่ระบุชื่องาน';
       const sorted = roster.slice().sort((a, b)=> new Date(a.registeredAt || 0) - new Date(b.registeredAt || 0));
-      const ws = buildMasterWorksheet(sorted, checkinTimes);
-      downloadWorksheetAsXlsx(`ข้อมูลลงทะเบียน_${currentEventName}_${currentTimestampSuffix()}.xlsx`, ws);
+      const buffer = await buildMasterWorkbookBuffer(sorted, checkinTimes);
+      downloadXlsxBuffer(`ข้อมูลลงทะเบียน_${currentEventName}_${currentTimestampSuffix()}.xlsx`, buffer);
     } catch(e){
       console.error(e);
       showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
