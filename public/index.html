@@ -10,6 +10,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.7.0/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<!-- SheetJS: สร้างไฟล์ .xlsx จริงสำหรับปุ่มดาวน์โหลดข้อมูล/รายงานเช็คอิน แทน CSV ธรรมดา
+     เพราะ CSV ไม่มีความสามารถกำหนดความสูงแถว (row height) ทำให้เปิดแล้วเห็นรูป QR (=IMAGE(...)) ไม่เต็ม -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- ต้องตั้งค่า Secret ชื่อ STORAGE_TOKEN ที่ค่าเดียวกันนี้ไว้ที่ฝั่ง Cloudflare Worker
      (Settings > Variables and Secrets) ไม่งั้น /api/storage จะปฏิเสธ request ทั้งหมด (401) -->
 <script>window.STORAGE_CLIENT_TOKEN = 'YYA52AoxgjTQyZq6BvTfFopLuieYLpo4fRmB0qAQ';</script>
@@ -1684,15 +1687,6 @@
     if(checkinPollTimer){ clearInterval(checkinPollTimer); checkinPollTimer = null; }
   }
 
-  function escapeCSV(str) {
-    if (str == null) return '';
-    let stringified = String(str);
-    if (stringified.includes(',') || stringified.includes('"') || stringified.includes('\n')) {
-      stringified = '"' + stringified.replace(/"/g, '""') + '"';
-    }
-    return stringified;
-  }
-
   // จัดรูปแบบวันที่แบบไม่พึ่ง locale — ก่อนหน้านี้ใช้ dt.toLocaleString('th-TH', ...)
   // ซึ่งได้ปี พ.ศ. (เช่น 2568) มาปนกับรูปแบบวันที่/เดือนที่กำกวม พอเปิดใน Excel มันเดา
   // locale ผิดแล้วตีความเป็นวันที่มั่วๆ (เช่นกลายเป็นปี 1969) ฟังก์ชันนี้ใช้ปี ค.ศ. ตรงๆ
@@ -1715,43 +1709,49 @@
     return isNaN(d.getTime()) ? a.registeredAt : formatCheckinTimeForCsv(d);
   }
 
-  // สูตร =IMAGE(...) ของ Google ชีต ใช้ quickchart.io สร้างรูป QR จากรหัสตรงๆ — ตรงกับ
-  // template ที่ใช้งานอยู่เดิม พอ import เป็น Google ชีตจะเห็นรูป QR ขึ้นในคอลัมน์นี้ทันที
-  // (Excel ทั่วไปจะเห็นเป็นข้อความสูตรเฉยๆ ไม่ได้ render เป็นรูป)
+  // สูตร IMAGE(...) ของ Google ชีต ใช้ quickchart.io สร้างรูป QR จากรหัสตรงๆ — ตรงกับ
+  // template ที่ใช้งานอยู่เดิม พอเปิดเป็น Google ชีตจะเห็นรูป QR ขึ้นในคอลัมน์นี้ทันที
+  // (Excel ทั่วไปจะเห็นเป็นข้อความสูตรเฉยๆ ไม่ได้ render เป็นรูป — ข้อจำกัดของฟังก์ชันนี้เอง
+  // ไม่เกี่ยวกับไฟล์ .xlsx หรือ .csv)
   function qrImageFormula(id){
-    return `=IMAGE("https://quickchart.io/qr?text=${id}&size=150")`;
+    return `IMAGE("https://quickchart.io/qr?text=${id}&size=150")`;
   }
 
   // สร้างแถวข้อมูลตาม template กลาง: ประทับเวลา, ชื่อ-สกุล, อีเมล, Registration ID,
   // Email Status, Attendance, QR Code Image — ใช้ร่วมกันทั้งปุ่ม "ดาวน์โหลดข้อมูล"
   // (แท็บออกบัตร QR) และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน)
-  // Excel/Google ชีตเห็นข้อความหน้าตาเหมือนวันที่ (เช่น "8/9/2026 15:01:23") แล้วแปลงเป็นวันที่
-  // ให้เองอัตโนมัติตอนเปิด CSV แล้วโชว์ตาม format วันที่-เวลา default ของโปรแกรม ซึ่งมักจะไม่มี
-  // วินาที (ค่าจริงยังอยู่ครบแค่ตัวเซลล์ไม่โชว์) ห่อด้วยสูตร ="..." (ทั้ง Excel และ Google ชีต
-  // เข้าใจ) บังคับให้เป็นข้อความล้วนตามที่พิมพ์เป๊ะๆ ไม่ถูกตีความ/จัดรูปแบบใหม่
-  function csvForceText(str){
-    if(!str) return '';
-    return `="${String(str).replace(/"/g, '""')}"`;
-  }
+  // ก่อนหน้านี้ export เป็น .csv ธรรมดา แต่ CSV เป็นข้อความล้วนไม่มีที่เก็บ style/ความสูงแถว
+  // เลย ทำให้เปิดไฟล์แล้วรูป QR (สูตร IMAGE ด้านบน) โผล่มาแต่แถวเตี้ยจนมองไม่เห็นรูป ต้อง
+  // ปรับความสูงแถวเองทุกครั้ง จึงเปลี่ยนมาสร้างเป็นไฟล์ .xlsx จริงด้วย SheetJS แทน เพราะ
+  // กำหนดความสูงแถว (ws['!rows']) ฝังไปในไฟล์ได้เลย เปิดมาก็เห็นรูปพอดีทันที และเป็นผลพลอยได้
+  // คือคอลัมน์ประทับเวลา/Attendance เก็บเป็นข้อความ (t:'s') ตรงๆ ไม่ต้องพึ่งสูตร ="..." กันการ
+  // ตีความเป็นวันที่ผิดๆ แบบตอนเป็น CSV อีกต่อไป
+  const XLSX_ROW_HEIGHT_PX = 50;
 
-  function buildMasterCsv(attendees, checkinTimes){
-    let csvContent = '﻿'; // BOM ให้ Excel อ่านภาษาไทยถูกต้อง
-    csvContent += 'ประทับเวลา,ชื่อ-สกุล,อีเมล,Registration ID,Email Status,Attendance,QR Code Image\n';
+  function buildMasterWorksheet(attendees, checkinTimes){
+    const header = ['ประทับเวลา', 'ชื่อ-สกุล', 'อีเมล', 'Registration ID', 'Email Status', 'Attendance', 'QR Code Image'];
+    const rows = [header];
     for(const a of attendees){
       const timeStr = checkinTimes[a.id];
       const attendance = timeStr ? formatCheckinTimeForCsv(new Date(timeStr)) : '';
       const emailStatus = a.emailStatus === 'sent' ? 'ส่งแล้ว' : '';
-      csvContent += [
-        escapeCSV(csvForceText(formatTimestampForCsv(a))),
-        escapeCSV(a.name),
-        escapeCSV(a.email || ''),
-        escapeCSV(a.id),
-        escapeCSV(emailStatus),
-        escapeCSV(csvForceText(attendance)),
-        qrImageFormula(a.id),
-      ].join(',') + '\n';
+      rows.push([formatTimestampForCsv(a), a.name, a.email || '', a.id, emailStatus, attendance, '']);
     }
-    return csvContent;
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const dateCols = [0, 5]; // ประทับเวลา, Attendance — บังคับเก็บเป็นข้อความล้วน กัน Excel/Google ชีตตีความเป็นวันที่เอง
+    for(let r = 1; r < rows.length; r++){
+      dateCols.forEach((c)=>{
+        const ref = XLSX.utils.encode_cell({ r, c });
+        ws[ref] = { t: 's', v: rows[r][c] || '' };
+      });
+      const qrRef = XLSX.utils.encode_cell({ r, c: 6 });
+      ws[qrRef] = { t: 'n', f: qrImageFormula(rows[r][3]), v: 0 };
+    }
+
+    ws['!rows'] = rows.map((_, r)=> ({ hpx: r === 0 ? 22 : XLSX_ROW_HEIGHT_PX }));
+    ws['!cols'] = [{ wch: 20 }, { wch: 24 }, { wch: 28 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 22 }];
+    return ws;
   }
 
   // ให้ชื่อไฟล์ export ทุกไฟล์ลงท้ายด้วยวันที่_เวลาปัจจุบันเสมอ กันไฟล์ทับกันเวลาโหลดหลายรอบ
@@ -1761,16 +1761,10 @@
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   }
 
-  function downloadTextFile(filename, content){
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  function downloadWorksheetAsXlsx(filename, ws){
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ข้อมูลลงทะเบียน');
+    XLSX.writeFile(wb, filename);
   }
 
   // ดึงเวลาเช็คอินจริงของทุกคนจาก KV มาเป็น map { id: isoTimeString }
@@ -1786,8 +1780,8 @@
 
   // ปุ่ม "ดาวน์โหลดข้อมูล" (แท็บออกบัตร QR) และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน)
   // เป็นรายงานเดียวกัน อิงจากข้อมูลลงทะเบียนทั้งหมดเสมอ (ไม่กรองเฉพาะคนที่เช็คอินแล้ว) —
-  // คอลัมน์ Attendance จะว่างสำหรับคนที่ยังไม่เช็คอินโดยธรรมชาติของ buildMasterCsv() อยู่แล้ว
-  async function exportRegistrationCsv(btn){
+  // คอลัมน์ Attendance จะว่างสำหรับคนที่ยังไม่เช็คอินโดยธรรมชาติของ buildMasterWorksheet() อยู่แล้ว
+  async function exportRegistrationXlsx(btn){
     if(!roster.length){ showToast('ยังไม่มีผู้ลงทะเบียน', 'warn'); return; }
     const originalHtml = btn.innerHTML; // เก็บ HTML ไว้ (มีไอคอน svg อยู่ด้วย) ไม่ใช้ textContent เพราะจะทำไอคอนหาย
     btn.disabled = true; btn.textContent = 'กำลังเตรียมไฟล์...';
@@ -1795,7 +1789,8 @@
       const checkinTimes = await fetchAllCheckinTimes();
       const currentEventName = eventName || 'ไม่ระบุชื่องาน';
       const sorted = roster.slice().sort((a, b)=> new Date(a.registeredAt || 0) - new Date(b.registeredAt || 0));
-      downloadTextFile(`ข้อมูลลงทะเบียน_${currentEventName}_${currentTimestampSuffix()}.csv`, buildMasterCsv(sorted, checkinTimes));
+      const ws = buildMasterWorksheet(sorted, checkinTimes);
+      downloadWorksheetAsXlsx(`ข้อมูลลงทะเบียน_${currentEventName}_${currentTimestampSuffix()}.xlsx`, ws);
     } catch(e){
       console.error(e);
       showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
@@ -1804,8 +1799,8 @@
     }
   }
 
-  document.getElementById('exportRosterBtn').addEventListener('click', (e)=> exportRegistrationCsv(e.currentTarget));
-  document.getElementById('exportBtn').addEventListener('click', (e)=> exportRegistrationCsv(e.currentTarget));
+  document.getElementById('exportRosterBtn').addEventListener('click', (e)=> exportRegistrationXlsx(e.currentTarget));
+  document.getElementById('exportBtn').addEventListener('click', (e)=> exportRegistrationXlsx(e.currentTarget));
 
   async function resetAllData(btn){
     if(!confirm('ล้างรายชื่อผู้ลงทะเบียนและสถานะเช็คอินทั้งหมดของงานนี้? การกระทำนี้ย้อนกลับไม่ได้')) return;
