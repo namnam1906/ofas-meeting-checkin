@@ -298,20 +298,25 @@
   .log-list{ display:flex; flex-direction:column; gap:0; max-height:280px; overflow-y:auto; border:1px solid var(--line); background:var(--paper-2); }
   .log-row{ display:flex; align-items:center; gap:8px; padding:9px 12px; font-size:12.5px; border-bottom:1px solid var(--line); }
   .log-row:last-child{ border-bottom:none; }
+  .log-checkbox{ display:none; flex-shrink:0; margin:0; cursor:pointer; }
+  #logList.selecting .log-checkbox{ display:inline-block; }
   .log-row-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .log-row .t{ color:var(--muted); font-family:var(--font-mono); font-size:11.5px; flex-shrink:0; }
   .log-empty{ padding:18px 12px; font-size:12.5px; color:var(--muted); text-align:center; }
   .log-actions{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .log-actions[hidden]{ display:none; }
   .log-header-buttons{ display:flex; gap:6px; }
   .icon-btn{
-    background:transparent; border:1px solid var(--line); cursor:pointer;
-    width:30px; height:30px; padding:0; font-size:14px; line-height:1;
+    background:transparent; border:1px solid var(--line); cursor:pointer; color:var(--text);
+    width:30px; height:30px; padding:0; line-height:1;
     display:flex; align-items:center; justify-content:center;
   }
   .icon-btn:hover{ background:var(--paper); }
   .icon-btn:disabled{ opacity:0.35; cursor:not-allowed; }
-  .icon-btn.danger{ border-color:var(--err); }
+  .icon-btn.danger{ border-color:var(--err); color:var(--err); }
   .icon-btn.danger:hover{ background:var(--err-bg); }
+  .icon{ width:14px; height:14px; flex-shrink:0; vertical-align:middle; }
+  .btn .icon{ margin-right:2px; }
 
   .danger-zone{ margin-top:34px; padding-top:18px; border-top:1px solid var(--line); }
   .danger-zone p{ font-size:12px; color:var(--muted); margin:0 0 8px; }
@@ -463,7 +468,7 @@
     <div class="badges-actions" id="actionButtons">
       <button class="btn brass small" id="printBtn">พิมพ์บัตร</button>
       <button class="btn ghost small" id="emailBtn">ส่งอีเมล QR</button>
-      <button class="btn ghost small" id="exportRosterBtn">📥 ดาวน์โหลดข้อมูล</button>
+      <button class="btn ghost small" id="exportRosterBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> ดาวน์โหลดข้อมูล</button>
       <button class="btn danger small" id="deleteBtn">ลบข้อมูล</button>
     </div>
     <div class="selection-bar" id="selectionBar" hidden>
@@ -524,22 +529,30 @@
           <div class="log-section-header">
             <h3>รายการเช็คอินล่าสุด</h3>
             <div class="log-header-buttons">
-              <button class="icon-btn" id="refreshCheckinBtn" title="รีเฟรช">🔄</button>
-              <button class="icon-btn danger" id="undoCheckinBtn" title="ลบรายการที่เลือก (ยกเลิกเช็คอิน)" disabled>🗑️</button>
+              <button class="icon-btn" id="refreshCheckinBtn" title="รีเฟรช">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11A8 8 0 0 0 6.3 6.3L4 8.6"/><path d="M4 4v4.6h4.6"/><path d="M4 13a8 8 0 0 0 13.7 4.7L20 15.4"/><path d="M20 20v-4.6h-4.6"/></svg>
+              </button>
+              <button class="icon-btn danger" id="undoCheckinBtn" title="ลบรายการที่เลือก (ยกเลิกเช็คอิน)">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
+              </button>
             </div>
           </div>
           <div class="log-list" id="logList"><div class="log-empty">ยังไม่มีการเช็คอิน</div></div>
-          <div class="log-actions">
+          <div class="log-actions" id="logActions" hidden>
             <label class="select-all-label">
               <input type="checkbox" id="selectAllLogBadges">
               เลือกทั้งหมด
             </label>
+            <div class="selection-bar-buttons">
+              <button class="btn danger small" id="confirmUndoBtn" disabled>ลบรายการที่เลือก (0)</button>
+              <button class="btn ghost small" id="cancelUndoBtn">ยกเลิก</button>
+            </div>
           </div>
         </div>
 
         <div class="export-zone" style="margin-top:22px; padding-top:18px; border-top:1px solid var(--line);">
           <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">ส่งออกข้อมูลผู้ที่เช็คอินแล้วเป็นไฟล์ CSV (เปิดด้วย Excel ได้)</p>
-          <button class="btn brass small" id="exportBtn">📥 ดาวน์โหลดรายงานเช็คอิน</button>
+          <button class="btn brass small" id="exportBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> ดาวน์โหลดรายงานเช็คอิน</button>
         </div>
 
         <div class="danger-zone">
@@ -1254,6 +1267,7 @@
   }
 
   let selectedLogIds = new Set(); // id ที่ติ๊กไว้ใน "รายการเช็คอินล่าสุด" เพื่อยกเลิกเช็คอิน
+  let logDeleteMode = false; // true ตั้งแต่กดไอคอนถังขยะ จนกด "ยกเลิก" หรือลบสำเร็จ — ตอนนี้เท่านั้นที่โชว์ checkbox
 
   function addLogEntry(attendee, when){
     const list = document.getElementById('logList');
@@ -1273,7 +1287,7 @@
       if(overflow && overflow.dataset && overflow.dataset.id) selectedLogIds.delete(overflow.dataset.id);
       list.removeChild(overflow);
     }
-    updateUndoCheckinUI();
+    if(logDeleteMode) updateLogSelectionUI();
   }
 
   // เอาแถวออกจาก "รายการเช็คอินล่าสุด" (ใช้ตอนยกเลิกเช็คอิน หรือ poll เจอว่าคนนี้ถูกยกเลิก
@@ -1284,16 +1298,37 @@
     if(row) row.remove();
     selectedLogIds.delete(id);
     if(!list.children.length) list.innerHTML = '<div class="log-empty">ยังไม่มีการเช็คอิน</div>';
-    updateUndoCheckinUI();
+    if(logDeleteMode) updateLogSelectionUI();
   }
 
-  function updateUndoCheckinUI(){
-    const list = document.getElementById('logList');
-    const rows = list.querySelectorAll('.log-row');
+  // กดไอคอนถังขยะ → เข้าโหมดลบ: ค่อยโผล่ checkbox ที่ทุกแถว + แถบ "เลือกทั้งหมด"/ยืนยัน/ยกเลิก
+  function enterLogDeleteMode(){
+    if(!document.querySelector('#logList .log-row')){
+      showToast('ยังไม่มีรายการเช็คอินให้ลบ', 'warn');
+      return;
+    }
+    logDeleteMode = true;
+    selectedLogIds.clear();
+    document.getElementById('logList').classList.add('selecting');
+    document.getElementById('logActions').hidden = false;
+    updateLogSelectionUI();
+  }
+
+  function exitLogDeleteMode(){
+    logDeleteMode = false;
+    selectedLogIds.clear();
+    document.querySelectorAll('.log-checkbox').forEach(cb=> cb.checked = false);
+    document.getElementById('logList').classList.remove('selecting');
+    document.getElementById('logActions').hidden = true;
+  }
+
+  function updateLogSelectionUI(){
+    const rows = document.querySelectorAll('#logList .log-row');
     const selectAllEl = document.getElementById('selectAllLogBadges');
-    const undoBtn = document.getElementById('undoCheckinBtn');
+    const confirmBtn = document.getElementById('confirmUndoBtn');
     const n = selectedLogIds.size;
-    undoBtn.disabled = n === 0;
+    confirmBtn.textContent = `ลบรายการที่เลือก (${n})`;
+    confirmBtn.disabled = n === 0;
     if(!rows.length){
       selectAllEl.checked = false;
       selectAllEl.indeterminate = false;
@@ -1305,11 +1340,14 @@
     selectAllEl.indeterminate = n > 0 && n < rows.length;
   }
 
+  document.getElementById('undoCheckinBtn').addEventListener('click', enterLogDeleteMode);
+  document.getElementById('cancelUndoBtn').addEventListener('click', exitLogDeleteMode);
+
   document.getElementById('logList').addEventListener('change', (e)=>{
     const cb = e.target.closest('.log-checkbox');
     if(!cb) return;
     if(cb.checked) selectedLogIds.add(cb.dataset.id); else selectedLogIds.delete(cb.dataset.id);
-    updateUndoCheckinUI();
+    updateLogSelectionUI();
   });
 
   document.getElementById('selectAllLogBadges').addEventListener('change', (e)=>{
@@ -1319,14 +1357,14 @@
       if(e.target.checked){ selectedLogIds.add(row.dataset.id); if(cb) cb.checked = true; }
       else { selectedLogIds.delete(row.dataset.id); if(cb) cb.checked = false; }
     });
-    updateUndoCheckinUI();
+    updateLogSelectionUI();
   });
 
-  async function doUndoCheckins(ids){
+  document.getElementById('confirmUndoBtn').addEventListener('click', async ()=>{
+    const ids = Array.from(selectedLogIds);
     if(!ids.length) return;
     if(!confirm(`ยกเลิกการเช็คอินของ ${ids.length} คนที่เลือกไว้? คนเหล่านี้จะกลับไปเป็น "ยังไม่เช็คอิน" และสแกน/ค้นหาเช็คอินใหม่ได้อีกครั้ง`)) return;
-    const btn = document.getElementById('undoCheckinBtn');
-    const originalText = btn.textContent;
+    const btn = document.getElementById('confirmUndoBtn');
     btn.disabled = true; btn.textContent = 'กำลังลบ...';
     try{
       for(const id of ids){
@@ -1336,25 +1374,21 @@
       }
       renderCheckinStats();
       renderSearchResults();
+      exitLogDeleteMode();
       showToast(`ยกเลิกการเช็คอิน ${ids.length} คนเรียบร้อย`, 'ok');
     } finally {
-      btn.disabled = false; btn.textContent = originalText;
+      btn.disabled = false;
     }
-  }
-
-  document.getElementById('undoCheckinBtn').addEventListener('click', ()=>{
-    doUndoCheckins(Array.from(selectedLogIds));
   });
 
   document.getElementById('refreshCheckinBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('refreshCheckinBtn');
-    const originalText = btn.textContent;
-    btn.disabled = true; btn.textContent = 'กำลังรีเฟรช...';
+    btn.disabled = true; // ปุ่มไอคอนล้วน ไม่มีข้อความให้สลับ แค่ปิดไว้ระหว่างรีเฟรช
     try{
       await pollCheckins();
       showToast('รีเฟรชข้อมูลเช็คอินแล้ว', 'ok');
     } finally {
-      btn.disabled = false; btn.textContent = originalText;
+      btn.disabled = false;
     }
   });
 
@@ -1744,7 +1778,7 @@
   document.getElementById('exportRosterBtn').addEventListener('click', async ()=>{
     if(!roster.length){ showToast('ยังไม่มีผู้ลงทะเบียน', 'warn'); return; }
     const btn = document.getElementById('exportRosterBtn');
-    const originalText = btn.textContent;
+    const originalHtml = btn.innerHTML; // เก็บ HTML ไว้ (มีไอคอน svg อยู่ด้วย) ไม่ใช้ textContent เพราะจะทำไอคอนหาย
     btn.disabled = true; btn.textContent = 'กำลังเตรียมไฟล์...';
     try{
       const checkinTimes = await fetchAllCheckinTimes();
@@ -1755,7 +1789,7 @@
       console.error(e);
       showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
     } finally {
-      btn.disabled = false; btn.textContent = originalText;
+      btn.disabled = false; btn.innerHTML = originalHtml;
     }
   });
 
@@ -1765,6 +1799,7 @@
       return;
     }
     const btn = document.getElementById('exportBtn');
+    const originalHtml = btn.innerHTML; // เก็บ HTML ไว้ (มีไอคอน svg อยู่ด้วย) ไม่ใช้ textContent เพราะจะทำไอคอนหาย
     btn.disabled = true;
     btn.textContent = 'กำลังเตรียมไฟล์...';
     try {
@@ -1785,7 +1820,7 @@
       showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์', 'err');
     } finally {
       btn.disabled = false;
-      btn.textContent = '📥 ดาวน์โหลดรายงานเช็คอิน';
+      btn.innerHTML = originalHtml;
     }
   });
 
@@ -1799,9 +1834,8 @@
     for(const k of keys){ await storeDelete(k, true); }
     roster = [];
     checkedInIds = new Set();
-    selectedLogIds.clear();
     document.getElementById('logList').innerHTML = '<div class="log-empty">ยังไม่มีการเช็คอิน</div>';
-    updateUndoCheckinUI();
+    exitLogDeleteMode();
     renderAll();
     btn.disabled = false; btn.textContent = originalText;
     showToast('ล้างข้อมูลเรียบร้อย', 'ok');
