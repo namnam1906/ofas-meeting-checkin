@@ -4,6 +4,12 @@ name = "ofas-checkin"
 main = "src/worker.js"
 compatibility_date = "2024-09-01"
 
+# ค่า Secret ที่ตั้งไว้ผ่านหน้า Dashboard (STORAGE_TOKEN, GOOGLE_APPS_SCRIPT_TOKEN ฯลฯ) ไม่ได้ประกาศ
+# ไว้ในไฟล์นี้ (ห้ามฝัง secret ไว้ในโค้ด/ไฟล์ config) ปกติ `wrangler deploy` จะลบ vars/secrets ที่ไม่ได้
+# ประกาศไว้ในไฟล์นี้ทิ้งทุกครั้งที่ deploy ใหม่ ทำให้ secret ที่ตั้งไว้ก่อนหน้าหายไปโดยไม่ได้ตั้งใจ —
+# ตั้ง keep_vars = true กันไว้ไม่ให้ลบของเดิมทิ้งทุกครั้งที่ deploy
+keep_vars = true
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
