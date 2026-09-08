@@ -1725,6 +1725,15 @@
   // สร้างแถวข้อมูลตาม template กลาง: ประทับเวลา, ชื่อ-สกุล, อีเมล, Registration ID,
   // Email Status, Attendance, QR Code Image — ใช้ร่วมกันทั้งปุ่ม "ดาวน์โหลดข้อมูล"
   // (แท็บออกบัตร QR) และ "ดาวน์โหลดรายงานเช็คอิน" (แท็บจุดเช็คอิน)
+  // Excel/Google ชีตเห็นข้อความหน้าตาเหมือนวันที่ (เช่น "8/9/2026 15:01:23") แล้วแปลงเป็นวันที่
+  // ให้เองอัตโนมัติตอนเปิด CSV แล้วโชว์ตาม format วันที่-เวลา default ของโปรแกรม ซึ่งมักจะไม่มี
+  // วินาที (ค่าจริงยังอยู่ครบแค่ตัวเซลล์ไม่โชว์) ห่อด้วยสูตร ="..." (ทั้ง Excel และ Google ชีต
+  // เข้าใจ) บังคับให้เป็นข้อความล้วนตามที่พิมพ์เป๊ะๆ ไม่ถูกตีความ/จัดรูปแบบใหม่
+  function csvForceText(str){
+    if(!str) return '';
+    return `="${String(str).replace(/"/g, '""')}"`;
+  }
+
   function buildMasterCsv(attendees, checkinTimes){
     let csvContent = '﻿'; // BOM ให้ Excel อ่านภาษาไทยถูกต้อง
     csvContent += 'ประทับเวลา,ชื่อ-สกุล,อีเมล,Registration ID,Email Status,Attendance,QR Code Image\n';
@@ -1733,12 +1742,12 @@
       const attendance = timeStr ? formatCheckinTimeForCsv(new Date(timeStr)) : '';
       const emailStatus = a.emailStatus === 'sent' ? 'ส่งแล้ว' : '';
       csvContent += [
-        escapeCSV(formatTimestampForCsv(a)),
+        escapeCSV(csvForceText(formatTimestampForCsv(a))),
         escapeCSV(a.name),
         escapeCSV(a.email || ''),
         escapeCSV(a.id),
         escapeCSV(emailStatus),
-        escapeCSV(attendance),
+        escapeCSV(csvForceText(attendance)),
         qrImageFormula(a.id),
       ].join(',') + '\n';
     }
