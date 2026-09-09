@@ -87,6 +87,8 @@ wrangler.toml          config ผูก assets directory + KV binding
 
 โปรเจกต์นี้ deploy ผ่าน Git integration ของ Cloudflare อยู่แล้ว (deploy command: `npx wrangler deploy`) ทุกครั้งที่ push เข้า branch ที่ผูกไว้ Cloudflare จะ build ใหม่อัตโนมัติ ไม่ต้องตั้งค่าเพิ่มสำหรับ KV binding เพราะกำหนดไว้ใน `wrangler.toml` แล้ว (`STORAGE_KV`)
 
+> **มี 2 บัญชี Cloudflare ที่ deploy โปรเจกต์นี้อยู่** — บัญชีเดิม (`vjarinya`, โฮสต์ `ofas-checkin.vjarinya.workers.dev`) ผูก Git integration กับ branch `main` ส่วนบัญชีที่ 2 ผูกกับ branch `claude/deploy-cloudflare-new-account-7kpvuc` แยกต่างหาก เพราะ `wrangler.toml` (โดยเฉพาะ KV namespace id) ผูกกับบัญชีใดบัญชีหนึ่งได้ครั้งละอันเท่านั้น — ถ้า merge KV id ของบัญชีหนึ่งเข้า `main` โดยไม่ตั้งใจ อีกบัญชีจะ deploy ไม่ผ่านทันที (`KV namespace not found`) เวลาแก้โค้ดฟีเจอร์ใหม่ที่ไม่เกี่ยวกับ KV/ชื่อ Worker ให้ merge ข้ามทั้ง 2 branch เสมอ
+
 ถ้าต้อง deploy มือจากเครื่อง (มี Wrangler login แล้ว):
 ```
 npx wrangler deploy
