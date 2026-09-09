@@ -76,7 +76,7 @@ wrangler.toml          config ผูก assets directory + KV binding
    - `PUT /api/storage` (body `{key, value}`) → `{ ok: true }`
    - `DELETE /api/storage?key=<key>` → `{ ok: true }`
 2. **`public/index.html`** — ฟังก์ชัน `storeGet/storeSet/storeDelete/storeList` ยิง `fetch()` ไปที่ `/api/storage`
-3. **`wrangler.toml`** — bind KV namespace `STORAGE_KV` (namespace จริง: `ofas-meeting-checkin-storage`, id `437af7e4878a43de854931c99f435aac`) และผูก assets directory `./public` เข้ากับ Worker
+3. **`wrangler.toml`** — bind KV namespace `STORAGE_KV` (namespace จริง: `ofas-meeting-checkin-storage`, id `7f8b7fc9805c480981098efc7d5d15d3`) และผูก assets directory `./public` เข้ากับ Worker
 
 รูปแบบข้อมูลใน KV:
 - คีย์ `roster` → JSON array ของผู้ลงทะเบียนทั้งหมด แต่ละ object มี `id` (รหัส/Registration ID ที่ใช้เป็นเนื้อหา QR), `name`, `email`, `phone`, `position`, `org`, `registeredAt` (ประทับเวลาจากไฟล์นำเข้า หรือเวลานำเข้าถ้าไม่มี), `emailStatus` (`'sent'` หลังส่งอีเมล QR สำเร็จ)
